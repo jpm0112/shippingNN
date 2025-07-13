@@ -2,10 +2,10 @@ import pandas as pd
 import glob
 import os
 
-folder = r"C:\Users\juanp\OneDrive - Auburn University\Research - port shipping cost\dataset\china_imports"
+folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\china_imports"
 all_files = glob.glob(os.path.join(folder, "*.csv"))
 
-df_list = [pd.read_csv(f) for f in all_files[:12]]
+df_list = [pd.read_csv(f) for f in all_files[:16]]
 df = pd.concat(df_list, ignore_index=True)
 
 
@@ -274,7 +274,7 @@ daily_df = pd.merge(daily_df, pivot_routes, on='FECHA', how='left')
 
 original_columns = set(daily_df.columns)
 
-folder = r"C:\Users\juanp\OneDrive - Auburn University\Research - port shipping cost\dataset\macrodata"
+folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\macrodata"
 
 for filename in os.listdir(folder):
     if filename.endswith(".csv"):
