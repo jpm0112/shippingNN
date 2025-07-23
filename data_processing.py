@@ -1,11 +1,12 @@
 import pandas as pd
 import glob
 import os
+import gc
 
-folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\china_imports"
+folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\container_data"
 all_files = glob.glob(os.path.join(folder, "*.csv"))
 
-df_list = [pd.read_csv(f) for f in all_files[:16]]
+df_list = [pd.read_csv(f) for f in all_files]
 df = pd.concat(df_list, ignore_index=True)
 
 
@@ -29,8 +30,15 @@ df.columns = [
     'ESTADO DE MERCANCIA', 'EMISOR'
 ]
 
-df = df.applymap(lambda x: x.replace('Ñ', 'N') if isinstance(x, str) else x)
-df = df.applymap(lambda x: x.replace('Ã‘', 'N') if isinstance(x, str) else x)
+for col in df.select_dtypes(include='float').columns:
+    df[col] = pd.to_numeric(df[col], downcast='float')
+for col in df.select_dtypes(include='int').columns:
+    df[col] = pd.to_numeric(df[col], downcast='integer')
+
+df['TIPO DE BULTO'] = df['TIPO DE BULTO'].astype('category')
+
+# df = df.applymap(lambda x: x.replace('Ñ', 'N') if isinstance(x, str) else x)
+# df = df.applymap(lambda x: x.replace('Ã‘', 'N') if isinstance(x, str) else x)
 
 
 
@@ -43,13 +51,11 @@ contenedores = [
     'CONTENEDOR NO REFRIGERADO',
     'CONTENEDOR REFRIGERADO 20'
 ]
-
+# filters container only data
 df = df[df['TIPO DE BULTO'].isin(contenedores)].copy()
 
 df.rename(columns={'DIA': 'day', 'MES': 'month', 'ANO': 'year'}, inplace=True)
 df['FECHA'] = pd.to_datetime(df[['year', 'month', 'day']], errors='coerce')
-
-
 
 df['FECHA_DOC_TRANSPORTE'] = pd.to_datetime(df['FECHA DOC. TRANSPORTE'], format='%d%m%Y', errors='coerce')
 
@@ -66,32 +72,25 @@ df['ITEMS POR CONTENEDOR'] = df['ITEMS TOTALES'] / df['CANTIDAD DE BULTO']
 
 # Calcular frecuencias y porcentajes
 frecuencias = df['PUERTO DE EMBARQUE'].value_counts(normalize=True) * 100
-
-# Identificar los que representan menos del 0.5%
-menos_frecuentes = frecuencias[frecuencias < 0.5].index
-
-# Reemplazar en el DataFrame
+menos_frecuentes = frecuencias[frecuencias < 5].index
 df['PUERTO DE EMBARQUE'] = df['PUERTO DE EMBARQUE'].replace(menos_frecuentes, 'OTHERS')
-
 
 # Calcular frecuencias y porcentajes
 frecuencias = df['PUERTO DE DESEMBARQUE'].value_counts(normalize=True) * 100
-
 # Identificar los que representan menos del 0.5%
-menos_frecuentes = frecuencias[frecuencias < 0.5].index
-
+menos_frecuentes = frecuencias[frecuencias < 5].index
 # Reemplazar en el DataFrame
 df['PUERTO DE DESEMBARQUE'] = df['PUERTO DE DESEMBARQUE'].replace(menos_frecuentes, 'OTHERS')
 
-
+# Calcular frecuencias y porcentajes
+frecuencias = df['PAIS DE ORIGEN'].value_counts(normalize=True) * 100
+menos_frecuentes = frecuencias[frecuencias < 5].index
+df['PAIS DE ORIGEN'] = df['PAIS DE ORIGEN'].replace(menos_frecuentes, 'OTHERS')
 
 # GROUP ALL THE OBSERVATIONS WITH THE SAME COMPANY (but with different names)
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].fillna('OTHERS')
-
-
 maersk_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'MAERSK' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(maersk_variants, 'MAERSK')
-
 # Identify and replace ZIM-related variants
 zim_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'ZIM' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(zim_variants, 'ZIM')
@@ -178,7 +177,7 @@ df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace('NO EXISTE',
 
 # drop some columns
 df = df.drop(columns=['ADUANA','DIGITO VERIFICADOR RUT','PROBABLE IMPORTADOR','PRODUCTO', 'MARCA', 'VARIEDAD',
-                      'DESCRIPCION','VIA DE TRANSPORTE','DESCRIPCION ARANCELARIA','NUM DE ITEM','PAIS DE ORIGEN',
+                      'DESCRIPCION','VIA DE TRANSPORTE','DESCRIPCION ARANCELARIA','NUM DE ITEM',
                       'FORMA PAGO','TIPO DE CARGA','TIPO DE OPERACION','PAIS COMPANIA DE TRANSPORTE','ALMACEN',
                       'ZONA ECONOMICA','CLAVE ECONOMICA IMPORTADOR','ACUERDO COMERCIAL','EMISOR','ESTADO DE MERCANCIA',
                       'NRO DOC. TRANSPORTE','FECHA DE MANIFIESTO','FECHA DE ALMACEN','FECHA DOC. TRANSPORTE',
@@ -187,7 +186,7 @@ df = df.drop(columns=['ADUANA','DIGITO VERIFICADOR RUT','PROBABLE IMPORTADOR','P
 
 df = df.drop(columns=['CIF TOTAL','US$ CIF','US$ CIF UNIT','US$ FOB UNIT','CANTIDAD','US$ FOB','US$ FLETE','US$ SEGURO',
                       'FECHA_DOC_TRANSPORTE','PAIS DE ADQUISICION','FOB TOTAL','FLETE TOTAL','SEGURO TOTAL',
-                      'TIPO DE BULTO','day','month','year','PESO BRUTO TOTAL','UNIDAD','ITEMS TOTALES'])
+                      'day','month','year','PESO BRUTO TOTAL','UNIDAD','ITEMS TOTALES'])
 
 df.to_csv("processed_df.csv", index=False)
 
@@ -221,22 +220,23 @@ daily_df = daily_df.merge(partida_diario, on='FECHA', how='left')
 
 
 
-
 # TOTAL CONTAINER COUNT
-total_contenedores_diario = df.groupby('FECHA')['CANTIDAD DE BULTO'].sum().reset_index()
-total_contenedores_diario.rename(columns={'CANTIDAD DE BULTO': 'TOTAL_CONTENEDORES'}, inplace=True)
-daily_df = pd.merge(daily_df, total_contenedores_diario, on='FECHA', how='left')
+# total_contenedores_diario = df.groupby('FECHA')['CANTIDAD DE BULTO'].sum().reset_index()
+# total_contenedores_diario.rename(columns={'CANTIDAD DE BULTO': 'TOTAL_CONTENEDORES'}, inplace=True)
+# daily_df = pd.merge(daily_df, total_contenedores_diario, on='FECHA', how='left')
 
 
 
-# peso promedio por dia
-peso_promedio_diario = df.groupby('FECHA')['PESO BRUTO POR CONTENEDOR'].mean().reset_index(name='PESO PROMEDIO POR CONTENEDOR')
-daily_df = pd.merge(daily_df, peso_promedio_diario, how='left', on='FECHA')
 
 
-items_promedio_diario = df.groupby('FECHA')['ITEMS POR CONTENEDOR'].mean().reset_index(name='ITEMS PROMEDIO POR CONTENEDOR')
-daily_df = pd.merge(daily_df, items_promedio_diario, how='left', on='FECHA')
+cols = ['DIFF FECHA DIN Y DOC TRANSPORTE','FOB_POR_BULTO', 'SEGURO_POR_BULTO', 'FLETE_POR_BULTO',
+        'PESO BRUTO POR CONTENEDOR', 'ITEMS POR CONTENEDOR']
+agg_funcs = ['mean', 'min', 'max']
 
+for col in cols:
+    agg_df = df.groupby('FECHA')[col].agg(agg_funcs).reset_index()
+    agg_df.columns = ['FECHA'] + [f'{func.upper()}_{col}' for func in agg_funcs]
+    daily_df = pd.merge(daily_df, agg_df, how='left', on='FECHA')
 
 
 
@@ -254,22 +254,33 @@ company_container_count = df.groupby(['FECHA', 'COMPANIA DE TRANSPORTE'])['CANTI
 pivot_company_count = company_container_count.pivot(index='FECHA', columns='COMPANIA DE TRANSPORTE', values='CANTIDAD DE BULTO').fillna(0).reset_index()
 daily_df = pd.merge(daily_df, pivot_company_count, how='left', on='FECHA')
 
+# containers per container type count
+container_type_container_count = df.groupby(['FECHA', 'TIPO DE BULTO'])['CANTIDAD DE BULTO'].sum().reset_index()
+pivot_container_type_count = container_type_container_count.pivot(index='FECHA', columns='TIPO DE BULTO',
+                                                    values='CANTIDAD DE BULTO').fillna(0).reset_index()
+daily_df = pd.merge(daily_df, pivot_container_type_count, how='left', on='FECHA')
 
+
+# container per origin country
+container_country_count = df.groupby(['FECHA', 'PAIS DE ORIGEN'])['CANTIDAD DE BULTO'].sum().reset_index()
+pivot_country_count = container_country_count.pivot(index='FECHA', columns='PAIS DE ORIGEN',
+                                                                  values='CANTIDAD DE BULTO').fillna(0).reset_index()
+daily_df = pd.merge(daily_df, pivot_country_count, how='left', on='FECHA')
+
+
+del df
+gc.collect()
 
 # Agrupar por FECHA, PUERTO DE EMBARQUE y DESEMBARQUE, sumando CANTIDAD DE BULTO
-containers_by_route = df.groupby(['FECHA', 'PUERTO DE EMBARQUE', 'PUERTO DE DESEMBARQUE'])['CANTIDAD DE BULTO'].sum().reset_index()
-containers_by_route['RUTA'] = containers_by_route['PUERTO DE EMBARQUE'].str.lower().str.strip() + " - " + containers_by_route['PUERTO DE DESEMBARQUE'].str.lower().str.strip()
-pivot_routes = containers_by_route.pivot_table(index='FECHA', columns='RUTA', values='CANTIDAD DE BULTO', fill_value=0).reset_index()
-daily_df = pd.merge(daily_df, pivot_routes, on='FECHA', how='left')
+# containers_by_route = df.groupby(['FECHA', 'PUERTO DE EMBARQUE', 'PUERTO DE DESEMBARQUE'])['CANTIDAD DE BULTO'].sum().reset_index()
+# containers_by_route['RUTA'] = containers_by_route['PUERTO DE EMBARQUE'].str.lower().str.strip() + " - " + containers_by_route['PUERTO DE DESEMBARQUE'].str.lower().str.strip()
+# pivot_routes = containers_by_route.pivot_table(index='FECHA', columns='RUTA', values='CANTIDAD DE BULTO', fill_value=0).reset_index()
+# daily_df = pd.merge(daily_df, pivot_routes, on='FECHA', how='left')
 
 
 
 
 #ADD MACRO DATA
-
-
-
-
 
 
 original_columns = set(daily_df.columns)
@@ -285,17 +296,20 @@ for filename in os.listdir(folder):
             df_macro['FECHA'] = pd.to_datetime(df_macro['Date'], errors='coerce')
             df_macro = df_macro.sort_values('FECHA').drop(columns=['Date'])
             df_macro[['Close', 'Volume']] = df_macro[['Close', 'Volume']].fillna(method='ffill').fillna(method='bfill')
-            df_macro.to_csv("test_macro.csv", index=False)
+            df_macro['Close_pct_change'] = df_macro['Close'].pct_change().fillna(0)
+
+            # df_macro.to_csv("test_macro.csv", index=False)
 
 
             if 'Close' in df_macro.columns and 'Volume' in df_macro.columns:
                 df_macro[['Close', 'Volume']] = df_macro[['Close', 'Volume']].fillna(method='ffill')
 
                 name = filename.replace('.csv', '').lower()  # e.g. 'data_gold'
-                macro_filtered = df_macro[['FECHA', 'Close', 'Volume']].rename(
+                macro_filtered = df_macro[['FECHA', 'Close', 'Volume', 'Close_pct_change']].rename(
                     columns={
                         'Close': f'{name}_price',
-                        'Volume': f'{name}_volume'
+                        'Volume': f'{name}_volume',
+                        'Close_pct_change': f'{name}_pct_change'
                     })
 
 
