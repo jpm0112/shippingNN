@@ -26,7 +26,7 @@ df = df.sort_values('FECHA')
 
 
 # good parameters for container prediction
-target_col = 'TOTAL_CONTENEDORES'
+target_col = 'CONTENEDOR 40'
 window_size = 120
 test_size = 30
 batch_size = 16
@@ -35,14 +35,14 @@ num_layers = 2
 epoch_number = 200
 lr = 0.01
 
-window_sizes = [30]
-test_sizes = [30, 60,]
-hidden_sizes = [24, 32]
+window_sizes = [30,60,120,360]
+test_sizes = [30]
+hidden_sizes = [32,48,64]
 nums_layers = [2, 3]
-epoch_numbers = [200, 500]
-target_cols = ['MEAN_FLETE_POR_BULTO']
-# target_cols = ['hong kong - san  antonio']
-lrs = [0.001]
+epoch_numbers = [500,1000]
+# target_cols = ['MEAN_FLETE_POR_BULTO']
+target_cols = ['CONTENEDOR 40']
+lrs = [0.01, 0.001]
 seeds = [1048596]
 deleted_samples =[0]
 
@@ -75,7 +75,7 @@ for seed in seeds:
 
                                     # Split train/test
                                     temp_df = df.copy()
-                                    temp_df = temp_df[:-deleted_sample]  # deleted a number of samples at the end of the data
+                                    # temp_df = temp_df[:-deleted_sample]  # deleted a number of samples at the end of the data
                                     train_df = temp_df[:-test_size]
                                     test_df = temp_df[-(test_size + window_size):]
 

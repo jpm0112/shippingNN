@@ -35,13 +35,24 @@ target_col = 'CONTENEDOR 40'
 feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
 
 # good parameters for container prediction
-window_size = 90
+window_size = 120
 test_size = 30
 batch_size = 16
-hidden_size = 48
-num_layers = 3
-epoch_number = 200
-lr = 0.001
+hidden_size = 64
+num_layers = 2
+epoch_number = 2000
+lr = 0.0001
+
+window_size = 30
+test_size = 30
+batch_size = 16
+hidden_size = 32
+num_layers = 2
+epoch_number = 1000
+lr = 0.01
+
+
+
 
 
 
@@ -145,8 +156,8 @@ model.eval()
 with torch.no_grad():
     preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
 
-preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
-real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
+preds = preds_scaled #* (target_max - target_min + 1e-8) + target_min
+real = np.array(y_test) #* (target_max - target_min + 1e-8) + target_min
 
 print('')
 print("Error Metrics:")
@@ -160,4 +171,6 @@ plt.title("Last month prediction")
 plt.xlabel("Days")
 plt.ylabel("Prediction target")
 plt.legend()
+plt.xticks(ticks=range(0, len(real), max(1, len(real//30))))  # 20 ticks approx
+plt.grid(True, which='both', linestyle='--', linewidth=0.5)  # Grid lines
 plt.show()
