@@ -171,6 +171,6 @@ plt.title("Last month prediction")
 plt.xlabel("Days")
 plt.ylabel("Prediction target")
 plt.legend()
-plt.xticks(ticks=range(0, len(real), max(1, len(real//30))))  # 20 ticks approx
+plt.xticks(ticks=range(0, len(real), max(1, len(real)//30)))
 plt.grid(True, which='both', linestyle='--', linewidth=0.5)  # Grid lines
 plt.show()
