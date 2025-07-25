@@ -51,7 +51,7 @@ contenedores = [
     'CONTENEDOR NO REFRIGERADO',
     'CONTENEDOR REFRIGERADO 20'
 ]
-# filters container only data
+# filters the whole df to include container data only
 df = df[df['TIPO DE BULTO'].isin(contenedores)].copy()
 
 df.rename(columns={'DIA': 'day', 'MES': 'month', 'ANO': 'year'}, inplace=True)
@@ -68,63 +68,60 @@ df['SEGURO_POR_BULTO'] = df['SEGURO TOTAL'] / df['CANTIDAD DE BULTO']
 df['PESO BRUTO POR CONTENEDOR'] = df['PESO BRUTO TOTAL'] / df['CANTIDAD DE BULTO']
 df['ITEMS POR CONTENEDOR'] = df['ITEMS TOTALES'] / df['CANTIDAD DE BULTO']
 
+df['TOTAL_TEU_REFRIGERADOS'] = (
+    df['CONTENEDOR REFRIGERADO 20'] + 2 *df['CONTENEDOR REFRIGERADO 40']
+)
+
+
 
 
 # Calcular frecuencias y porcentajes
 frecuencias = df['PUERTO DE EMBARQUE'].value_counts(normalize=True) * 100
-menos_frecuentes = frecuencias[frecuencias < 5].index
-df['PUERTO DE EMBARQUE'] = df['PUERTO DE EMBARQUE'].replace(menos_frecuentes, 'OTHERS')
+menos_frecuentes = frecuencias[frecuencias < 10].index
+df['PUERTO DE EMBARQUE'] = df['PUERTO DE EMBARQUE'].replace(menos_frecuentes, 'other_ports')
 
 # Calcular frecuencias y porcentajes
 frecuencias = df['PUERTO DE DESEMBARQUE'].value_counts(normalize=True) * 100
 # Identificar los que representan menos del 0.5%
-menos_frecuentes = frecuencias[frecuencias < 5].index
+menos_frecuentes = frecuencias[frecuencias < 10].index
 # Reemplazar en el DataFrame
-df['PUERTO DE DESEMBARQUE'] = df['PUERTO DE DESEMBARQUE'].replace(menos_frecuentes, 'OTHERS')
+df['PUERTO DE DESEMBARQUE'] = df['PUERTO DE DESEMBARQUE'].replace(menos_frecuentes, 'other_ports')
 
 # Calcular frecuencias y porcentajes
 frecuencias = df['PAIS DE ORIGEN'].value_counts(normalize=True) * 100
-menos_frecuentes = frecuencias[frecuencias < 5].index
-df['PAIS DE ORIGEN'] = df['PAIS DE ORIGEN'].replace(menos_frecuentes, 'OTHERS')
+menos_frecuentes = frecuencias[frecuencias < 0.5].index
+df['PAIS DE ORIGEN'] = df['PAIS DE ORIGEN'].replace(menos_frecuentes, 'other_countries')
+
+
+
+# COMPANY PRE-PROCESSING:
 
 # GROUP ALL THE OBSERVATIONS WITH THE SAME COMPANY (but with different names)
-df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].fillna('OTHERS')
+df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].fillna('other_countries')
 maersk_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'MAERSK' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(maersk_variants, 'MAERSK')
 # Identify and replace ZIM-related variants
 zim_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'ZIM' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(zim_variants, 'ZIM')
-
 # Identify and replace MSC-related variants
 msc_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'MSC' in name or 'MEDITERRANEAN' in name or 'MEDIT.' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(msc_variants, 'MSC')
-
 pil_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'PIL' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(pil_variants, 'PIL')
-
 hyundai_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'HYUNDAI' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(hyundai_variants, 'HYUNDAI')
-
 cosco_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'COSCO' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(cosco_variants, 'COSCO')
-
 oocl_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'OOCL' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(oocl_variants, 'OOCL')
-
 hapag_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'HAPAG' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(hapag_variants, 'HAPAG-LLOYD')
-
 one_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'ONE' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(one_variants, 'ONE')
-
 hamburg_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'HAMBURG' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(hamburg_variants, 'HAMBURG')
-
 agunsa_variants = [name for name in df['COMPANIA DE TRANSPORTE'].unique() if 'AGUNSA' in name]
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(agunsa_variants, 'AGUNSA')
-
-
-
 
 replacements = {
     'WAN HAI': ['WAN HAI. NAVEPAC','WAN HAI LINES', 'WAN HAI LINE', 'WAN HAI LINES LTD', 'WAN HAI LINES LTDA', 'WHL WAN HAI LINE', 'WAN HAI LINE LINES L'],
@@ -148,28 +145,21 @@ replacements = {
     'SAVINO DEL BENE': ['SAVINO DEL BENE', 'SAVINO DEL BENE CHIL','SAVINO DEL BENE'],
     'AGUNSA': ['AGENCIA UNIVERSALES', 'AGENCIAS UNIVERSALES', 'AGENCIAS UNIVER', 'AGUNSA UNIVERSALES','AGUNSA LOGISTICS']
 }
-
-
-
-
 def reemplazar_nombre_compania(nombre):
     for estandar, variantes in replacements.items():
         if any(var in nombre for var in variantes):
             return estandar
     return nombre
-
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].astype(str).apply(reemplazar_nombre_compania)
-
-
 # Calcular frecuencias y porcentajes
 frecuencias = df['COMPANIA DE TRANSPORTE'].value_counts(normalize=True) * 100
-
 # Identificar los que representan menos del 0.5%
 menos_frecuentes = frecuencias[frecuencias < 0.5].index
+# create the other_countries category
+df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(menos_frecuentes, 'other_countries')
+df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace('NO EXISTE', 'other_countries')
 
-# create the OTHERS category
-df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(menos_frecuentes, 'OTHERS')
-df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace('NO EXISTE', 'OTHERS')
+
 
 
 
@@ -196,15 +186,10 @@ df.to_csv("processed_df.csv", index=False)
 
 # create a df for the aggregated data by day
 daily_df = pd.DataFrame({'FECHA': df['FECHA'].dropna().sort_values().unique()})
-
-
 din_diario = df.groupby('FECHA')['NUMERO DE ACEPTACION'].nunique().reset_index()
 din_diario.rename(columns={'NUMERO DE ACEPTACION': 'DIN_UNICOS_DIARIOS'}, inplace=True)
-
 # Unir al DataFrame diario
 daily_df = pd.merge(daily_df, din_diario, on='FECHA', how='left')
-
-
 
 # UNIQUE COUNT OF IMPORTER COMPANY AND PARTIDA ARACELARIA
 rut_diario = df.groupby('FECHA')['RUT PROBABLE IMPORTADOR'].nunique().reset_index()
@@ -221,10 +206,14 @@ daily_df = daily_df.merge(partida_diario, on='FECHA', how='left')
 
 
 # TOTAL CONTAINER COUNT
-# total_contenedores_diario = df.groupby('FECHA')['CANTIDAD DE BULTO'].sum().reset_index()
-# total_contenedores_diario.rename(columns={'CANTIDAD DE BULTO': 'TOTAL_CONTENEDORES'}, inplace=True)
-# daily_df = pd.merge(daily_df, total_contenedores_diario, on='FECHA', how='left')
+total_contenedores_diario = df.groupby('FECHA')['CANTIDAD DE BULTO'].sum().reset_index()
+total_contenedores_diario.rename(columns={'CANTIDAD DE BULTO': 'TOTAL_TEUS'}, inplace=True)
+daily_df = pd.merge(daily_df, total_contenedores_diario, on='FECHA', how='left')
 
+# total container refrigerados
+total_contenedores_diario_ref = df.groupby('FECHA')['TOTAL_TEU_REFRIGERADOS'].sum().reset_index()
+total_contenedores_diario_ref.rename(columns={'TOTAL_TEU_REFRIGERADOS': 'TOTAL_TEUS'}, inplace=True)
+daily_df = pd.merge(daily_df, total_contenedores_diario_ref, on='FECHA', how='left')
 
 
 
