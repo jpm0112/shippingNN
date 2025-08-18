@@ -3,28 +3,26 @@ import numpy as np
 from sklearn.linear_model import Lasso
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-from functions import *
-from datetime import datetime
 import matplotlib.pyplot as plt
 
 # Load and prepare data
-df = pd.read_csv("test_daily.csv")
-df['FECHA'] = pd.to_datetime(df['FECHA'])
-df = df.sort_values('FECHA')
+df = pd.read_csv("data/proc/test_final_kz.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
+df = df.sort_values("FECHA")
 
 # Parameters
 target_col = "TOTAL_TEUS"  # or 'MEAN_FLETE_POR_BULTO'
-target_col = "MEAN_FLETE_POR_BULTO"
-test_size = 30
-n_lags = 30  # number of past values used as features
+target_col = "XSICNEUE Index  (L3)"
+test_size = 20
+n_lags = 20  # number of past values used as features
 
 # Build lagged features for target and other variables
 lagged_cols = []
 for lag in range(1, n_lags + 1):
-    new_cols = {f'{target_col}_lag{lag}': df[target_col].shift(lag)}
+    new_cols = {f"{target_col}_lag{lag}": df[target_col].shift(lag)}
     for col in df.columns:
-        if col not in ['FECHA', target_col] and '_lag' not in col:
-            new_cols[f'{col}_lag{lag}'] = df[col].shift(lag)
+        if col not in ["FECHA", target_col] and "_lag" not in col:
+            new_cols[f"{col}_lag{lag}"] = df[col].shift(lag)
     lagged_cols.append(pd.DataFrame(new_cols))
 
 # Combine all lagged features
@@ -33,10 +31,9 @@ df = pd.concat([df, lagged_df], axis=1)
 df = df.dropna()
 
 # Define feature columns (all lagged features)
-feature_cols = [col for col in df.columns if '_lag' in col]
+feature_cols = [col for col in df.columns if "_lag" in col]
 
 # print(feature_cols)
-
 
 
 # testing soemthing unrelate to the code
@@ -75,12 +72,12 @@ print("R²:", r2)
 
 # Plot results
 plt.figure(figsize=(12, 6))
-plt.plot(y_test, label='Real', marker='o')
-plt.plot(preds_scaled, label='Prediction', marker='o')
+plt.plot(y_test, label="Real", marker="o")
+plt.plot(preds_scaled, label="Prediction", marker="o")
 plt.title("Last month prediction")
 plt.xlabel("Days")
 plt.ylabel("Normalized target")
 plt.legend()
 plt.xticks(ticks=range(0, len(y_test), max(1, len(y_test) // 10)))
-plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+plt.grid(True, which="both", linestyle="--", linewidth=0.5)
 plt.show()
