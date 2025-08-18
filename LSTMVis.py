@@ -113,35 +113,24 @@ class LSTMForecast(nn.Module):
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.3)
         self.fc = nn.Linear(hidden_size, 1)
 
-    def forward(self, x):
-        out, _ = self.lstm(x)
+    def forward(self, x, return_hidden=False):
+        out, (hn, cn) = self.lstm(x)
+        if return_hidden:
+            return out  # shape: (batch, seq_len, hidden_size)
         out = out[:, -1, :]
         return self.fc(out)
 
 model = LSTMForecast(input_size=X_train.shape[2]).to(device)
 
 # Transformer model
-
-# d_model = 8
-# n_head=2
-# num_layers = 2
-# epoch_number = 100
-# lr = 0.0001
-
-# d_model = 200
-# n_head=2
-# num_layers = 2
-# epoch_number = 100
-# lr = 0.0001
-
 # class TransformerForecast(nn.Module):
-#     def __init__(self, input_size, d_model=d_model, nhead=n_head, num_layers=num_layers):
+#     def __init__(self, input_size, d_model=32, nhead=8, num_layers=8):
 #         super(TransformerForecast, self).__init__()
 #         self.input_linear = nn.Linear(input_size, d_model)
 #         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
 #         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 #         self.fc = nn.Linear(d_model, 1)
-
+#
 #     def forward(self, x):
 #         x = self.input_linear(x)
 #         x = self.transformer(x)
@@ -168,9 +157,26 @@ X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
 model.eval()
 with torch.no_grad():
     preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
+with torch.no_grad():
+    hidden_states = model(X_test_tensor, return_hidden=True).cpu().numpy()
+
+
+
 
 preds = preds_scaled #* (target_max - target_min + 1e-8) + target_min
 real = np.array(y_test) #* (target_max - target_min + 1e-8) + target_min
+
+
+import json
+
+vis_data = {
+    "sequences": hidden_states[:100].tolist(),
+    "labels": real[:100].tolist(),
+    "meta": {"description": "Hidden states for LSTMVis"}
+}
+
+with open("lstmvis_data.json", "w") as f:
+    json.dump(vis_data, f)
 
 print('')
 print("Error Metrics:")

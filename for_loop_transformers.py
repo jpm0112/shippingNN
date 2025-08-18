@@ -30,25 +30,32 @@ target_col = 'CONTENEDOR 40'
 window_size = 120
 test_size = 30
 batch_size = 16
-hidden_size = 48
 num_layers = 2
 epoch_number = 200
 lr = 0.01
 
-window_sizes = [30,60,120,360]
+d_model = 200
+n_head=2
+num_layers = 2
+epoch_number = 100
+lr = 0.0001
+
+d_models = [64, 128, 256, 384]
+n_heads = [2, 4, 8]
+
+window_sizes = [30,120]
 test_sizes = [30]
-hidden_sizes = [32,64]
-# hidden_sizes = [[32,32],[32,64],[64,64],[64,124]]
 nums_layers = [2, 3]
 epoch_numbers = [500,1000]
 # target_cols = ['MEAN_FLETE_POR_BULTO']
-target_cols = ['TOTAL_TEUS','MEAN_FLETE_POR_BULTO']
-lrs = [0.01, 0.001]
+target_cols = ['TOTAL_TEUS']
+lrs = [0.001, 0.0005, 0.00005]
 seeds = [1048596]
 deleted_samples =[0]
+deleted_sample = 0
 
 results_df = pd.DataFrame(columns=[
-    "seed","deleted_samples","window_size", "test_size", "hidden_size", "num_layers", "epoch_number","Target","LR",
+    "seed","deleted_samples","window_size", "test_size", "d_model", "n_head","num_layers", "epoch_number","Target","LR",
     "MAE", "MSE", "RMSE", "r2"
 ])
 
@@ -57,14 +64,15 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 for seed in seeds:
     for window_size in window_sizes:
         for test_size in test_sizes:
-            for hidden_size in hidden_sizes:
+            for d_model in d_models:
                 for num_layers in nums_layers:
                     for epoch_number in epoch_numbers:
                         for target_col in target_cols:
                             for lr in lrs:
-                                for deleted_sample in deleted_samples:
+                                for n_head in n_heads:
                                     print(f"Running with seed={seed}, window_size={window_size}, test_size={test_size}, "
-                                          f"hidden_size={hidden_size}, num_layers={num_layers}, epoch_number={epoch_number}, "
+                                          f"d_model={d_model},  "
+                                          f"n_head={n_head},num_layers={num_layers}, epoch_number={epoch_number}, "
                                           f"target_col={target_col}, lr={lr}, deleted_sample={deleted_sample}")
                                     random.seed(seed)
                                     np.random.seed(seed)
@@ -123,42 +131,20 @@ for seed in seeds:
                                     dataloader = DataLoader(dataset, batch_size, shuffle=False)
 
 
-                                    # Modelo
-                                    class LSTMForecast(nn.Module):
-                                        def __init__(self, input_size, hidden_size=hidden_size, num_layers=num_layers):
-                                            super(LSTMForecast, self).__init__()
-                                            self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.3)
-                                            self.fc = nn.Linear(hidden_size, 1)
+                                    class TransformerForecast(nn.Module):
+                                        def __init__(self, input_size, d_model=d_model, nhead=n_head, num_layers=num_layers):
+                                            super(TransformerForecast, self).__init__()
+                                            self.input_linear = nn.Linear(input_size, d_model)
+                                            encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
+                                            self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+                                            self.fc = nn.Linear(d_model, 1)
 
                                         def forward(self, x):
-                                            out, _ = self.lstm(x)
-                                            out = out[:, -1, :]
+                                            x = self.input_linear(x)
+                                            x = self.transformer(x)
+                                            out = x[:, -1, :]
                                             return self.fc(out)
-
-
-                                    model = LSTMForecast(input_size=X_train.shape[2]).to(device)
-
-
-                                    # DNN Model
-                                    # class DNNForecast(nn.Module):
-                                    #     def __init__(self, input_size, hidden_sizes=hidden_size):
-                                    #         super(DNNForecast, self).__init__()
-                                    #         self.layers = nn.Sequential(
-                                    #             nn.Linear(input_size, hidden_sizes[0]),
-                                    #             nn.ReLU(),
-                                    #             nn.Dropout(0.3),
-                                    #             nn.Linear(hidden_sizes[0], hidden_sizes[1]),
-                                    #             nn.ReLU(),
-                                    #             nn.Dropout(0.3),
-                                    #             nn.Linear(hidden_sizes[1], 1)
-                                    #         )
-
-                                    #     def forward(self, x):
-                                    #         return self.layers(x)
-
-                                    # model = DNNForecast(input_size=X_train.shape[1]).to(device)
-
-
+                                    model = TransformerForecast(input_size=X_train.shape[2]).to(device)
                                     criterion = nn.MSELoss()
                                     optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=1e-4)
 
@@ -188,10 +174,10 @@ for seed in seeds:
                                     print("")
 
                                     results_df.loc[len(results_df)] = [
-                                        seed,deleted_sample,window_size, test_size, hidden_size, num_layers, epoch_number, target_col,lr,
+                                        seed,deleted_sample,window_size, test_size, d_model, n_head, num_layers, epoch_number, target_col,lr,
                                         mae, mse, rmse, r2
                                     ]
-                                    results_df.to_csv(f"model_results_LSTM_{timestamp}.csv", index=False)
+                                    results_df.to_csv(os.path.join("results", f"model_results_{timestamp}.csv"),index=False)
 
 # Visualización
 # plt.figure(figsize=(12, 6))
