@@ -6,6 +6,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from functions import *
 from datetime import datetime
+import os
 
 # Configurar dispositivo
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -16,8 +17,8 @@ import random
 
 
 # Leer y preparar datos
-df = pd.read_csv("test_daily.csv")
-df['FECHA'] = pd.to_datetime(df['FECHA'])
+df = pd.read_csv("test_final_kz.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
 df = df.sort_values('FECHA')
 
 # Parámetros
@@ -48,7 +49,7 @@ test_sizes = [30]
 nums_layers = [2, 3]
 epoch_numbers = [500,1000]
 # target_cols = ['MEAN_FLETE_POR_BULTO']
-target_cols = ['TOTAL_TEUS']
+target_cols = ["XSICFEUW Index  (R4)"]
 lrs = [0.001, 0.0005, 0.00005]
 seeds = [1048596]
 deleted_samples =[0]
