@@ -4,16 +4,38 @@ warnings.filterwarnings("ignore")
 import pytorch_lightning as pl
 from pytorch_forecasting import TimeSeriesDataSet
 from pytorch_forecasting.models import TemporalFusionTransformer
-from pytorch_forecasting.metrics import MAPE, MSE
+from pytorch_forecasting.metrics import MAPE
 from pytorch_forecasting.data.encoders import GroupNormalizer
+import pandas as pd
+import torch
 
 # Build time features once (outside loops if you want)
+df = pd.read_csv("test_final_kz.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
+df = df.sort_values('FECHA')
+# clean column names (replace "." with "_")
+df = df.rename(columns=lambda x: x.replace(".", "_"))
+
+
 tmp = df.copy()
-tmp["time_idx"] = (tmp["FECHA"] - tmp["FECHA"].min()).dt.days.astype(int)
-tmp["series"] = "kz"  # single series id
+tmp = df.sort_values("FECHA").copy()
+tmp["series"] = "kz"  # or your series id
+tmp["time_idx"] = tmp.groupby("series").cumcount()
 # simple known-future calendar features (always available)
 tmp["dow"] = tmp["FECHA"].dt.weekday.astype(int)
 tmp["month"] = tmp["FECHA"].dt.month.astype(int)
+
+target_col = "XSICFEUW Index  (R4)"
+window_size  = 5     # one year context
+test_size    = 2     # ~half year test
+train_cut = tmp["time_idx"].max() - test_size
+d_model      = 64     # hidden size
+n_head       = 2      # attention heads
+num_layers   = 1      # lstm layers
+epoch_number = 100    # train epochs
+lr           = 1e-3   # learning rate
+batch_size   = 8      # batch size
+seed         = 1048596
 
 def run_tft(
     data, target_col, window_size, test_size,
@@ -30,20 +52,33 @@ def run_tft(
     time_varying_known_reals = ["time_idx", "dow", "month"]          # known into the future
     time_varying_unknown_reals = [target_col] + feature_cols         # observed only historically
 
+    print(data)
+
+
     training = TimeSeriesDataSet(
-        data[data.time_idx <= train_cutoff],
+        tmp[tmp.time_idx <= train_cut],
         time_idx="time_idx",
         target=target_col,
         group_ids=["series"],
         max_encoder_length=window_size,
-        max_prediction_length=1,   # 1-step ahead like your current code
+        min_encoder_length=window_size,   # ensure full window
+        max_prediction_length=1,
+        min_prediction_length=1,
         time_varying_known_reals=time_varying_known_reals,
         time_varying_unknown_reals=time_varying_unknown_reals,
         static_categoricals=["series"],
         target_normalizer=GroupNormalizer(groups=["series"]),
         allow_missing_timesteps=True,
     )
-    validation = TimeSeriesDataSet.from_dataset(training, data, predict=True, stop_randomization=True)
+
+    # start validation AFTER the training cutoff
+    validation = TimeSeriesDataSet.from_dataset(
+        training, tmp, predict=True, stop_randomization=True, min_prediction_idx=train_cut + 1
+    )
+
+
+
+
 
     train_loader = training.to_dataloader(train=True, batch_size=batch_size, num_workers=0)
     val_loader   = validation.to_dataloader(train=False, batch_size=batch_size, num_workers=0)
@@ -56,7 +91,7 @@ def run_tft(
         attention_head_size=n_head,
         lstm_layers=num_layers,
         dropout=0.1,
-        loss=MSE(),          # or QuantileLoss() with output_size>1
+        loss=MAPE(),          # or QuantileLoss() with output_size>1
         output_size=1,
         reduce_on_plateau_patience=3,
     )
