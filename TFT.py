@@ -43,6 +43,8 @@ def run_tft(
         target_normalizer=GroupNormalizer(groups=["series"]),
         allow_missing_timesteps=True,
     )
+
+    print(training)
     validation = TimeSeriesDataSet.from_dataset(training, data, predict=True, stop_randomization=True)
 
     train_loader = training.to_dataloader(train=True, batch_size=batch_size, num_workers=0)
