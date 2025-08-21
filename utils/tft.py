@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-
+from lightning.pytorch import Trainer
 from pytorch_forecasting import TemporalFusionTransformer, TimeSeriesDataSet
 from pytorch_forecasting.data import GroupNormalizer
 
@@ -175,7 +175,7 @@ def run_tft(
         accelerator = "cpu"
 
     # FIX: Use compatible trainer settings
-    trainer = pl.Trainer(
+    trainer = Trainer(
         max_epochs=epoch_number,
         accelerator=accelerator,
         devices=1,
