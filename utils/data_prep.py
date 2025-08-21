@@ -1,6 +1,5 @@
 import pandas as pd
 import os
-from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import TimeSeriesSplit
 
 script_path = os.path.abspath(__file__)
@@ -81,13 +80,18 @@ def prepare_data_w_lag(df, target_col_num, n_lags, n_splits):
         train_df = df_full.iloc[train_index]
         test_df = df_full.iloc[test_index]
 
-        scaler_X = StandardScaler()
-        scaler_y = StandardScaler()
+        # scaler_X = StandardScaler()
+        # scaler_y = StandardScaler()
 
-        X_train = scaler_X.fit_transform(train_df[feature_cols])
-        y_train = scaler_y.fit_transform(train_df[[target_col]]).ravel()
+        # X_train = scaler_X.fit_transform(train_df[feature_cols])
+        # y_train = scaler_y.fit_transform(train_df[[target_col]]).ravel()
 
-        X_test = scaler_X.transform(test_df[feature_cols])
-        y_test = scaler_y.transform(test_df[[target_col]]).ravel()
+        # X_test = scaler_X.transform(test_df[feature_cols])
+        # y_test = scaler_y.transform(test_df[[target_col]]).ravel()
+
+        X_train = train_df[feature_cols].values
+        y_train = train_df[target_col].values
+        X_test = test_df[feature_cols].values
+        y_test = test_df[target_col].values
 
         yield X_train, y_train, X_test, y_test
