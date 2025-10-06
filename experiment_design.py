@@ -1,7 +1,6 @@
 import itertools
 import numpy as np
 import pandas as pd
-
 # ---- user-tunable settings ----
 factor_names = [f"F{i}" for i in range(1, 9)]  # you can replace with your hyperparameter names
 random_seed = 42
@@ -26,6 +25,7 @@ design_coded = np.column_stack([A, B, C, D, E, F, G, H])
 
 # Build DataFrame
 df = pd.DataFrame(design_coded, columns=factor_names)
+#test
 
 # Assign datasets in a balanced, randomized way
 order = rng.permutation(len(df))
