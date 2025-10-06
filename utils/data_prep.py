@@ -25,6 +25,12 @@ target_list = [
     "Close_pct_change_XSICUWFE Index  (L1)",
     "Close_pct_change_XSICNEUE Index  (L3)",
     "Close_pct_change_BDIY Index  (R3)",
+    'SAW',
+    'FE',
+    'NE',
+    'SE',
+    'NAW',
+    'NAE'
 ]
 
 
@@ -49,11 +55,17 @@ def prepare_data_w_lag(df, target_col_num, n_lags, n_splits):
     15:"Close_pct_change_XSICUWFE Index  (L1)",
     16:"Close_pct_change_XSICNEUE Index  (L3)",
     17:"Close_pct_change_BDIY Index  (R3)",
+    18:SAW,
+    19:FE,
+    20:NE,
+    21:SE,
+    22:NAW,
+    23:NAE
 
     Leave df None to use the default data
     """
     if df is None:
-        df = pd.read_csv(os.path.join(root_dir, "proc", "test_final_kz.csv"))
+        df = pd.read_csv(os.path.join(root_dir, "proc", "weekly_price_data_kz.csv"))
     df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
     df = df.sort_values("FECHA").reset_index(drop=True)
 

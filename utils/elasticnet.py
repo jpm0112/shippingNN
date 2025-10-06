@@ -41,9 +41,11 @@ def run_xgb_model(df=None, target_col_num=0, n_lags=20, n_splits=5):
 
 if __name__ == "__main__":
     # Example usage
-    for n in range(11, 18):
-        print(f"Running index {n} for target")
-        print("Running ElasticNet model...")
-        run_xgb_model(target_col_num=n, n_lags=8, n_splits=5)
-        print("Running baseline model for comparison...")
-        evaluate_baseline_model(target_col_num=n, n_lags=8, n_splits=5)
+    n = 23
+    n_lags = 8
+    n_splits = 5
+    print(f"Running index {n} for target")
+    print("Running ElasticNet model...")
+    run_xgb_model(target_col_num=n, n_lags=n_lags, n_splits=n_splits)
+    print("Running baseline model for comparison...")
+    evaluate_baseline_model(target_col_num=n, n_lags=n_lags, n_splits=n_splits)
