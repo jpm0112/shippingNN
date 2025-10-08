@@ -174,6 +174,7 @@ for seed in seeds:
                                                 static_categoricals=["series"],
                                                 target_normalizer=GroupNormalizer(groups=["series"]),
                                                 allow_missing_timesteps=True,
+
                                             )
 
 
@@ -201,7 +202,7 @@ for seed in seeds:
                                                 loss=MAE(),          # or QuantileLoss() with output_size>1
                                                 output_size=1,
                                                 reduce_on_plateau_patience=3,
-                                                gradient_clip_val = 0.1
+
                                             )
 
                                             trainer = Trainer(
@@ -212,6 +213,7 @@ for seed in seeds:
                                                 log_every_n_steps=10,
                                                 enable_checkpointing=False,
                                                 enable_model_summary=False,
+                                                gradient_clip_val = 0.01
                                             )
 
                                             trainer.fit(tft, train_loader, val_loader)
