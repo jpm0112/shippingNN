@@ -4,7 +4,7 @@ import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import matplotlib.pyplot as plt
-from functions import *
+from functions import error_metrics
 from datetime import datetime
 
 # Configurar dispositivo
@@ -16,9 +16,10 @@ import random
 
 
 # Leer y preparar datos
-df = pd.read_csv("test_daily.csv")
-df['FECHA'] = pd.to_datetime(df['FECHA'])
-df = df.sort_values('FECHA')
+df = pd.read_csv("data/test_final_kz.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
+df = df.sort_values("FECHA")
+
 
 # Parámetros
 
@@ -26,30 +27,31 @@ df = df.sort_values('FECHA')
 
 
 # good parameters for container prediction
-target_col = 'CONTENEDOR 40'
-window_size = 120
-test_size = 30
+
+target_col = "NE"
+window_size = 12
+test_size = 4
 batch_size = 16
 hidden_size = 48
 num_layers = 2
 epoch_number = 200
 lr = 0.01
 
-window_sizes = [30,60,120,360]
-test_sizes = [30]
+window_sizes = [8,12,16]
+test_sizes = [4,8]
 hidden_sizes = [32,64]
 # hidden_sizes = [[32,32],[32,64],[64,64],[64,124]]
 nums_layers = [2, 3]
 epoch_numbers = [500,1000]
 # target_cols = ['MEAN_FLETE_POR_BULTO']
-target_cols = ['TOTAL_TEUS','MEAN_FLETE_POR_BULTO']
+target_cols = ['NE','SE','NAE','NAW','SAE','SAW','XSICFEUW Index  (R4)','XSICFENE Index  (R1)','XSICFESE Index  (L4)','XSICNEFE Index  (R2)','XSICNESE Index  (L2)','XSICUENE Index  (R1)']
 lrs = [0.01, 0.001]
 seeds = [1048596]
 deleted_samples =[0]
 
 results_df = pd.DataFrame(columns=[
     "seed","deleted_samples","window_size", "test_size", "hidden_size", "num_layers", "epoch_number","Target","LR",
-    "MAE", "MSE", "RMSE", "r2"
+    "MAE","MAPE", "MSE", "RMSE", "r2"
 ])
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -179,17 +181,17 @@ for seed in seeds:
                                     with torch.no_grad():
                                         preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
 
-                                    preds = preds_scaled  # * (target_max - target_min + 1e-8) + target_min
-                                    real = np.array(y_test)  # * (target_max - target_min + 1e-8) + target_min
+                                    preds = preds_scaled   * (target_max - target_min + 1e-8) + target_min
+                                    real = np.array(y_test)   * (target_max - target_min + 1e-8) + target_min
 
                                     print('')
                                     print("Error Metrics:")
-                                    mae, mse, rmse, r2 = error_metrics(real, preds)
+                                    mae,mape, mse, rmse, r2 = error_metrics(real, preds)
                                     print("")
 
                                     results_df.loc[len(results_df)] = [
                                         seed,deleted_sample,window_size, test_size, hidden_size, num_layers, epoch_number, target_col,lr,
-                                        mae, mse, rmse, r2
+                                        mae,mape, mse, rmse, r2
                                     ]
                                     results_df.to_csv(f"model_results_LSTM_{timestamp}.csv", index=False)
 
