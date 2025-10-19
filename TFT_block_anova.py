@@ -74,10 +74,10 @@ n_folds = len(deleted_samples)
 
 # targets (already defined)
 target_cols = [
-    # 'NE','SE','NAE','NAW','SAE','SAW',
-    'XSICFEUW Index  (R4)','XSICFENE Index  (R1)',
-    'XSICFESE Index  (L4)','XSICNEFE Index  (R2)',
-    'XSICNESE Index  (L2)','XSICUENE Index  (R1)'
+    'NE','SE','NAE','NAW','SAE','SAW',
+#     'XSICFEUW Index  (R4)','XSICFENE Index  (R1)',
+#     'XSICFESE Index  (L4)','XSICNEFE Index  (R2)',
+#     'XSICNESE Index  (L2)','XSICUENE Index  (R1)'
 ]
 
 target_cols = [
@@ -86,9 +86,11 @@ target_cols = [
 
 
 results_df = pd.DataFrame(columns=[
-    "seed","deleted_samples","window_size","test_size","hidden_size","n_head",
-    "num_layers","epoch_number","Target","LR","MAE","MAPE","MSE","RMSE","r2"
+    "seed", "deleted_samples", "window_size", "test_size", "hidden_size",
+    "n_head", "num_layers", "epoch_number", "Target", "LR", "dropout",
+    "batch_size", "grad_clip", "MAE", "MAPE", "MSE", "RMSE", "r2", "runtime"
 ])
+
 
 
 total = (
@@ -103,16 +105,33 @@ total = (
 )
 iteration_counter = 0
 
-for seed in seeds:
-    for window_size in window_sizes:
-        for test_size in test_sizes:
-            for d_model in d_models:
-                for n_head in n_heads:
-                    for num_layers in num_layerss:
-                        for epoch_number in epoch_numbers:
-                            for target_col in target_cols:
-                                for lr in lrs:
 
+
+
+import pandas as pd
+
+# Load combinations
+param_grid = pd.read_csv("easy_name.csv")
+
+total = len(param_grid)*len(window_sizes)*len(test_sizes)*len(seeds)
+
+for _, row in param_grid.iterrows():
+    lr = row["Learning rate"]
+    epoch_number = row["Epoch Number"]
+    d_model = row["Hidden sizes"]
+    num_layers = row["lstm layers"]
+    dropout = row["dropout"]
+    n_head = row["attention heads"]
+    batch_size = row["batch size"]
+    grad_clip = row["gradient clipping"]
+    target_col = row["target column"]
+
+
+    for seed in seeds:
+        for window_size in window_sizes:
+            for test_size in test_sizes:
+                                    start = datetime.now()
+ 
                                     iteration_counter = iteration_counter +1
                                     print("Iteration: " + str(iteration_counter) + "/" + str(total))
 
@@ -140,8 +159,10 @@ for seed in seeds:
 
 
                                         print(f"Running with seed={seed}, window_size={window_size}, test_size={test_size}, "
-                                              f"d_model={d_model}, num_layers={num_layers}, epoch_number={epoch_number}, "
-                                              f"target_col={target_col}, lr={lr}, deleted_sample={deleted_sample}")
+                                          f"d_model={d_model}, num_layers={num_layers}, epoch_number={epoch_number}, "
+                                          f"target_col={target_col}, lr={lr}, dropout={dropout}, n_head={n_head}, "
+                                          f"batch_size={batch_size}, grad_clip={grad_clip}, deleted_sample={deleted_sample}")
+
 
                                         
                                         def run_tft(
@@ -262,7 +283,7 @@ for seed in seeds:
                                         sum_rmse += rmse
                                         sum_r2   += r2
 
-
+                                    runtime = (datetime.now() - start).total_seconds()
                                     avg_mae  = sum_mae  / n_folds
                                     avg_mape = sum_mape / n_folds
                                     avg_mse  = sum_mse  / n_folds
@@ -270,88 +291,20 @@ for seed in seeds:
                                     avg_r2   = sum_r2   / n_folds
 
                                     results_df.loc[len(results_df)] = [
-                                        seed, deleted_sample, window_size, test_size, d_model, n_head, num_layers, epoch_number, target_col, lr,
-                                        avg_mae, avg_mape, avg_mse, avg_rmse, avg_r2
+                                    seed, deleted_sample, window_size, test_size, d_model, n_head, num_layers,
+                                    epoch_number, target_col, lr, dropout, batch_size, grad_clip,
+                                    avg_mae, avg_mape, avg_mse, avg_rmse, avg_r2, runtime
                                     ]
+
                                     results_df.to_csv(os.path.join("results", f"model_results_TFT_{timestamp}.csv"), index=False)
 
-                                    
 
 
 
-#hola
 
-import pandas as pd
 
-# Load combinations
-param_grid = pd.read_csv("easy_name.csv")
 
-for _, row in param_grid.iterrows():
-    lr = row["Learning rate"]
-    epoch_number = row["Epoch Number"]
-    d_model = row["Hidden sizes"]
-    num_layers = row["lstm layers"]
-    dropout = row["dropout"]
-    n_head = row["attention heads"]
-    batch_size = row["batch size"]
-    grad_clip = row["gradient clipping"]
 
-    print(f"Running: lr={lr}, epochs={epoch_number}, hidden={d_model}, layers={num_layers}, "
-          f"dropout={dropout}, heads={n_head}, batch={batch_size}, clip={grad_clip}")
 
-    tft = TemporalFusionTransformer.from_dataset(
-        training,
-        learning_rate=lr,
-        hidden_size=d_model,
-        attention_head_size=n_head,
-        lstm_layers=num_layers,
-        dropout=dropout,
-        loss=MAE(),
-        output_size=1,
-        reduce_on_plateau_patience=3,
-    )
-
-    trainer = Trainer(
-        max_epochs=epoch_number,
-        accelerator="gpu" if torch.cuda.is_available() else "cpu",
-        devices=1,
-        gradient_clip_val=grad_clip,
-        enable_checkpointing=False,
-        enable_model_summary=False,
-        log_every_n_steps=10,
-    )
-
-    trainer.fit(tft, train_loader, val_loader)
-    # Predict last test_size steps (1-step-ahead rolling from validation set)
-    # preds = tft.predict(val_loader, trainer=trainer).squeeze(-1).cpu().numpy()
-
-    preds = tft.predict(val_loader).squeeze(-1).cpu().numpy()
-
-    # True values aligned with preds:
-    y_true = []
-    # for batch in iter(val_loader):
-    #     # batch[1] is target in pytorch-forecasting dataloader
-    #     y_true.append(batch[1].cpu().numpy())
-
-    for x, y in val_loader:
-        # if (target, weight), keep only target
-        if isinstance(y, (tuple, list)):
-            y = y[0]
-        # move to cpu + numpy
-        y_true.append(y.detach().cpu().numpy())
-
-    y_true = np.concatenate(y_true).reshape(-1)
-
-    # Keep only the last `test_size` 1-step predictions (matches your prior eval)
-    y_test_pred = preds[-test_size:]
-    y_test_true = y_true[-test_size:]
-
-    mae,mape, mse, rmse, r2 = error_metrics(y_test_true, y_test_pred)
-
-    results_df.loc[len(results_df)] = [
-                                        seed, deleted_sample, window_size, test_size, d_model, n_head, num_layers, epoch_number, target_col, lr,
-                                        avg_mae, avg_mape, avg_mse, avg_rmse, avg_r2
-                                    ]
-    results_df.to_csv(os.path.join("results", f"model_results_TFT_{timestamp}.csv"), index=False)
 
     
