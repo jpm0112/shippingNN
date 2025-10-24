@@ -19,6 +19,9 @@ dependencies = [
   "matplotlib>=3.9.4",
   "numpy>=2.0.2",
   "pre-commit>=4.3",
-  "pyarrow>=21.0.0",
-  "pytorch-forecasting>=1.4",
+  "pyarrow>=21",
+  "pytorch-forecasting>=1.4.0",
+  "scikit-learn>=1.7.1",
+  "scipy>=1.16.1",
+  "statsmodels>=0.14.5",
 ]
