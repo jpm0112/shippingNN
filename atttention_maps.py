@@ -1,6 +1,7 @@
 # --- SINGLE RUN VERSION ---
 import warnings
 warnings.filterwarnings("ignore")
+import pytorch_lightning as pl
 from lightning.pytorch import Trainer
 from pytorch_forecasting import TimeSeriesDataSet, TemporalFusionTransformer
 from pytorch_forecasting.metrics import MAE
@@ -15,43 +16,12 @@ import os
 torch.set_float32_matmul_precision("high")
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-# Load data
-df = pd.read_csv("data/test_final_kz.csv")
-df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
-df = df.sort_values("FECHA")
-df = df.rename(columns=lambda x: x.replace(".", "_"))
-
-# --- single model parameters ---
-target_col   = "XSICFENE Index  (R1)"
-window_size  = 8
-test_size    = 4
-d_model      = 8
-n_head       = 2
-num_layers   = 1
-epoch_number = 50
-lr           = 0.01
-batch_size   = 16
-dropout      = 0.5
-grad_clip    = 1
-seed         = 1048596
-deleted_sample = 0
-
-# Preprocess
-tmp = df.copy()
-tmp = tmp.sort_values("FECHA").copy()
-tmp["series"] = "kz"
-tmp["time_idx"] = tmp.groupby("series").cumcount()
-tmp["dow"] = tmp["FECHA"].dt.weekday.astype(int)
-tmp["month"] = tmp["FECHA"].dt.month.astype(int)
-if deleted_sample > 0:
-    tmp = tmp.iloc[:-deleted_sample]
-
-train_cut = tmp["time_idx"].max() - test_size
 
 # --- TFT function ---
-def run_tft(data, target_col, window_size, test_size,
-            d_model, n_head, num_layers, epoch_number, lr, batch_size, seed):
+def run_tft(data, target_col, window_size, test_size, grad_clip,
+            d_model, n_head, num_layers, epoch_number, lr, batch_size, seed, train_cut):
 
+    pl.seed_everything(seed)
     feature_cols = [c for c in data.columns if c not in ["FECHA", target_col, "time_idx", "series"]]
     time_varying_known_reals = ["time_idx", "dow", "month"]
     time_varying_unknown_reals = [target_col] + feature_cols
@@ -85,7 +55,7 @@ def run_tft(data, target_col, window_size, test_size,
         hidden_size=d_model,
         attention_head_size=n_head,
         lstm_layers=num_layers,
-        dropout=dropout,
+        dropout=0.3,
         loss=MAE(),
         output_size=1,
         reduce_on_plateau_patience=3,
@@ -116,55 +86,87 @@ def run_tft(data, target_col, window_size, test_size,
 
     return y_true, preds, tft, val_loader, training
 
+if __name__ == "__main__":
+    # --- Run single model ---
 
-# --- Run single model ---
-start = datetime.now()
-y_true, y_pred, tft, val_loader, training = run_tft(
-    tmp, target_col, window_size, test_size,
-    d_model, n_head, num_layers, epoch_number, lr, batch_size, seed
-)
-mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
-runtime = (datetime.now() - start).total_seconds()
+    # Load data
+    df = pd.read_csv("test_final_kz.csv")
+    df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
+    df = df.sort_values("FECHA")
+    df = df.rename(columns=lambda x: x.replace(".", "_"))
 
-print(f"MAE={mae:.3f}, MAPE={mape:.3f}, RMSE={rmse:.3f}, R2={r2:.3f}, Time={runtime:.1f}s")
+    # --- single model parameters ---
+    target_col   = "XSICFENE Index  (R1)"
+    window_size  = 8
+    test_size    = 4
+    d_model      = 8
+    n_head       = 2
+    num_layers   = 1
+    epoch_number = 50
+    lr           = 0.01
+    batch_size   = 16
+    dropout      = 0.5
+    grad_clip    = 1
+    seed         = 1048596
+    deleted_sample = 0
+
+    # Preprocess
+    tmp = df.copy()
+    tmp = tmp.sort_values("FECHA").copy()
+    tmp["series"] = "kz"
+    tmp["time_idx"] = tmp.groupby("series").cumcount()
+    tmp["dow"] = tmp["FECHA"].dt.weekday.astype(int)
+    tmp["month"] = tmp["FECHA"].dt.month.astype(int)
+    if deleted_sample > 0:
+        tmp = tmp.iloc[:-deleted_sample]
+
+    train_cut = tmp["time_idx"].max() - test_size
+    start = datetime.now()
+    y_true, y_pred, tft, val_loader, training = run_tft(
+        tmp, target_col, window_size, test_size, grad_clip,
+        d_model, n_head, num_layers, epoch_number, lr, batch_size, seed
+    )
+    mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
+    runtime = (datetime.now() - start).total_seconds()
+
+    print(f"MAE={mae:.3f}, MAPE={mape:.3f}, RMSE={rmse:.3f}, R2={r2:.3f}, Time={runtime:.1f}s")
 
 
 
-# after training
-raw_pred, x, *_ = tft.predict(val_loader, return_x=True, mode="raw")
-interpret = tft.interpret_output(raw_pred, reduction="none")
-A = np.asarray(interpret["attention"])           # attention
+    # after training
+    raw_pred, x, *_ = tft.predict(val_loader, return_x=True, mode="raw")
+    interpret = tft.interpret_output(raw_pred, reduction="none")
+    A = np.asarray(interpret["attention"])           # attention
 
-print("attention shape:", A.shape)
+    print("attention shape:", A.shape)
 
-# Average to "lag importance" (length = enc_len)
-if A.ndim == 4:          # [B, dec, enc, heads]
-    attn_mean_lag = A.mean(axis=(0,1,3))
-elif A.ndim == 3:        # [B, dec, enc]
-    attn_mean_lag = A.mean(axis=(0,1))
-elif A.ndim == 2:        # [dec, enc]
-    attn_mean_lag = A.mean(axis=0)
-else:
-    raise ValueError(f"Unexpected attention ndim={A.ndim}")
+    # Average to "lag importance" (length = enc_len)
+    if A.ndim == 4:          # [B, dec, enc, heads]
+        attn_mean_lag = A.mean(axis=(0,1,3))
+    elif A.ndim == 3:        # [B, dec, enc]
+        attn_mean_lag = A.mean(axis=(0,1))
+    elif A.ndim == 2:        # [dec, enc]
+        attn_mean_lag = A.mean(axis=0)
+    else:
+        raise ValueError(f"Unexpected attention ndim={A.ndim}")
 
-# Quick plots
-import matplotlib.pyplot as plt
+    # Quick plots
+    import matplotlib.pyplot as plt
 
-# heatmap for a single example
-if A.ndim == 4:
-    heat = A[0].mean(axis=-1)          # avg heads -> [dec, enc]
-elif A.ndim == 3:
-    heat = A[0]                        # [dec, enc]
-else:
-    heat = A                           # [dec, enc]
+    # heatmap for a single example
+    if A.ndim == 4:
+        heat = A[0].mean(axis=-1)          # avg heads -> [dec, enc]
+    elif A.ndim == 3:
+        heat = A[0]                        # [dec, enc]
+    else:
+        heat = A                           # [dec, enc]
 
-plt.figure(); plt.imshow(heat, aspect="auto", origin="lower")
-plt.colorbar(label="attention"); plt.xlabel("encoder steps"); plt.ylabel("decoder step")
-plt.title("TFT attention"); plt.show()
+    plt.figure(); plt.imshow(heat, aspect="auto", origin="lower")
+    plt.colorbar(label="attention"); plt.xlabel("encoder steps"); plt.ylabel("decoder step")
+    plt.title("TFT attention"); plt.show()
 
-# if single-step forecast, also show line over lags
-if heat.shape[0] == 1:
-    plt.figure(); plt.plot(attn_mean_lag)
-    plt.xlabel("encoder step (old→new)"); plt.ylabel("avg attention")
-    plt.title("Average attention over encoder lags"); plt.show()
-
+    # if single-step forecast, also show line over lags
+    if heat.shape[0] == 1:
+        plt.figure(); plt.plot(attn_mean_lag)
+        plt.xlabel("encoder step (old→new)"); plt.ylabel("avg attention")
+        plt.title("Average attention over encoder lags"); plt.show()
