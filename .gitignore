@@ -1,3 +1,4 @@
 /data
 .DS_Store
 *.pyc
+notebooks/lightning_logs/**/checkpoints/*.ckpt
