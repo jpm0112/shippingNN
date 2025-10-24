@@ -4,8 +4,8 @@ import pandas as pd
 # ---- user-tunable settings ----
 factor_names = [f"F{i}" for i in range(1, 9)]  # you can replace with your hyperparameter names
 random_seed = 42
-n_center_points = 9  # e.g., 1 per dataset; set to 0 to skip
-dataset_labels = [f"ds{i}" for i in range(1, 10)]  # 9 datasets
+n_center_points = 8  # e.g., 1 per dataset; set to 0 to skip
+dataset_labels = [f"ds{i}" for i in range(1, 9)]  # 8 datasets
 # --------------------------------
 
 rng = np.random.default_rng(random_seed)
