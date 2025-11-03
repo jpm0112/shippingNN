@@ -148,7 +148,7 @@ for seed in seeds:
                                             data, target_col, window_size, test_size,
                                             d_model, n_head, num_layers, epoch_number, lr, batch_size, seed
                                         ):
-                                            # pl.seed_everything(seed)
+                                            seed_everything(seed)
 
                                             # split by time
                                             max_time = data["time_idx"].max()

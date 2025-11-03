@@ -2,8 +2,7 @@ from ax import Client, RangeParameterConfig, ChoiceParameterConfig
 import pandas as pd
 from pathlib import Path
 import csv
-from atttention_maps import run_tft
-from functions import error_metrics
+from functions import error_metrics, run_tft
 from datetime import datetime
 
 # --- CSV setup ---
@@ -20,7 +19,7 @@ if write_header:
 
 deleted_sample = 0
 test_size    = 4
-target_col   = "XSICFENE Index  (R1)"
+target_col   = "FE"
 # Load data
 df = pd.read_csv("test_final_kz.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
@@ -73,7 +72,7 @@ client.configure_experiment(
 )
 client.configure_optimization(objective="-1 * mape")
 
-for _ in range(5):
+for _ in range(100):
     # Use higher value of `max_trials` to run trials in parallel.
     for trial_index, parameters in client.get_next_trials(max_trials=1).items():
         started_at = datetime.now()
