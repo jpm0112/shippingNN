@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from lightning.pytorch import Trainer, seed_everything
 from pytorch_forecasting import TimeSeriesDataSet, TemporalFusionTransformer
-from pytorch_forecasting.metrics import MAE
+from pytorch_forecasting.metrics import MAE, QuantileLoss
 from pytorch_forecasting.data.encoders import GroupNormalizer
 
 def error_metrics(y_true, y_pred):
@@ -27,23 +27,30 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
             d_model, n_head, num_layers, epoch_number, lr, batch_size, seed, train_cut):
     seed_everything(seed)
     feature_cols = [c for c in data.columns if c not in ["FECHA", target_col, "time_idx", "series"]]
-    time_varying_known_reals = ["time_idx", "dow", "month"]
+    # time_varying_known_reals = ["time_idx", "dow", "month"]
+    time_varying_known_reals = ["time_idx"]
     time_varying_unknown_reals = [target_col] + feature_cols
 
+    q = [0.1, 0.5, 0.9]  # choose your quantiles
+    output_size = len(q)
+    loss = QuantileLoss(quantiles=q)
+
     training = TimeSeriesDataSet(
-        data[data.time_idx <= train_cut],
-        time_idx="time_idx",
-        target=target_col,
-        group_ids=["series"],
-        max_encoder_length=window_size,
-        min_encoder_length=window_size,
-        max_prediction_length=test_size,
-        min_prediction_length=test_size,
+        data[data.time_idx <= train_cut],  # only the training slice (no future leakage)
+        time_idx="time_idx",  # column representing the time ordering (0,1,2,...)
+        target=target_col,  # the variable you want to forecast
+        group_ids=["series"],  # identifies each time series (you have one: "kz")
+        max_encoder_length=window_size,  # how many past steps the model sees as input
+        min_encoder_length=window_size,  # force this length (no variable window)
+        max_prediction_length=test_size,  # how many future steps to predict
+        min_prediction_length=test_size,  # force prediction length
         time_varying_known_reals=time_varying_known_reals,
+        # features known for all time (e.g., time index, calendar info)
         time_varying_unknown_reals=time_varying_unknown_reals,
-        static_categoricals=["series"],
-        target_normalizer=GroupNormalizer(groups=["series"]),
-        allow_missing_timesteps=True,
+        # features that are only known up to “now” (target and lagged features)
+        static_categoricals=["series"],  # series label — constant across time
+        target_normalizer=GroupNormalizer(groups=["series"]),  # normalize per series (mean/std or quantiles)
+        allow_missing_timesteps=True,  # let the dataset handle gaps in time_idx
     )
 
     validation = TimeSeriesDataSet.from_dataset(
@@ -60,8 +67,8 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
         attention_head_size=n_head,
         lstm_layers=num_layers,
         dropout=0.3,
-        loss=MAE(),
-        output_size=1,
+        loss = loss,
+        output_size=output_size,
         reduce_on_plateau_patience=3,
     )
 
