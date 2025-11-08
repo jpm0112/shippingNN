@@ -1,0 +1,1 @@
+trial_index,LR,epochs,gradclip,attention_heads,hidden_size,num_layers,window_size,mae,mape,mse,rmse,r2,runtime_s,started_at
