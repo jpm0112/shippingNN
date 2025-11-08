@@ -24,32 +24,24 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 # Leer y preparar datos
-df = pd.read_csv("test_daily.csv")
-df['FECHA'] = pd.to_datetime(df['FECHA'])
+df = pd.read_csv("chile_data.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
 df = df.sort_values('FECHA')
 
 # Parámetros
-target_col = 'TOTAL_TEUS'
-# target_col = 'MEAN_FLETE_POR_BULTO'
-# target_col = 'hong kong - san  antonio'
+target_col = 'FE'
 feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
 
 # good parameters for container prediction
-window_size = 120
-test_size = 30
+window_size = 48
+test_size = 24
 batch_size = 16
-hidden_size = 64
+hidden_size = 256
 num_layers = 2
 epoch_number = 2000
 lr = 0.0001
 
-window_size = 48
-test_size = 24
-batch_size = 16
-hidden_size = 32
-num_layers = 2
-epoch_number = 1000
-lr = 0.01
+
 
 # Split train/test
 train_df = df[:-test_size]
@@ -112,8 +104,6 @@ class LSTMForecast(nn.Module):
 
 
 model = LSTMForecast(input_size=X_train.shape[2]).to(device)
-
-
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=1e-4)
 
@@ -143,12 +133,12 @@ error_metrics(real, preds)
 
 # Visualización
 plt.figure(figsize=(12, 6))
-plt.plot(real, label='Real', marker='o')
-plt.plot(preds, label='Prediction', marker='o')
-plt.title("Last month prediction")
-plt.xlabel("Days")
-plt.ylabel("Prediction target")
+plt.plot(real, marker="o", label="Real")
+plt.plot(preds, marker="o", label="Prediction")
+plt.title("Prediction (original scale)")
+plt.xlabel("Weeks")
+plt.ylabel(target_col)
 plt.legend()
-plt.xticks(ticks=range(0, len(real), max(1, len(real) // 30)))
-plt.grid(True, which='both', linestyle='--', linewidth=0.5)  # Grid lines
-plt.show()
+plt.grid(True, linestyle="--", linewidth=0.5)
+plt.tight_layout()
+plt.savefig("plots/z_lstm_prediction.png", dpi=200)
