@@ -3,17 +3,18 @@ import numpy as np
 from sklearn.linear_model import Lasso
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, mean_absolute_percentage_error
-import matplotlib.pyplot as plt
+from sklearn.linear_model import LassoCV
+from functions import error_metrics
 
 # Load and prepare data
-df = pd.read_csv("data/test_final_kz.csv")
+df = pd.read_csv("chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
 df = df.sort_values("FECHA")
 
 # Parameters
-target_col = "NE"
-test_size = 4
-n_lags = 10  # number of past values used as features
+target_col = "FE"
+test_size =24
+n_lags = 48  # number of past values used as features
 
 # Build lagged features for target and other variables
 lagged_cols = []
@@ -52,25 +53,22 @@ X_test = scaler_X.transform(test_df[feature_cols])
 y_test = scaler_y.transform(test_df[[target_col]]).ravel()
 
 # Train Lasso model
-model = Lasso(alpha=0.01, max_iter=10000)
+
+model = LassoCV(cv=10, max_iter=20000).fit(X_train, y_train)
+print(model.alpha_)
+
+# model = Lasso(alpha=0.001, max_iter=10000)
 model.fit(X_train, y_train)
 preds_scaled = model.predict(X_test)
 
 # Evaluation
-mae = mean_absolute_error(y_test, preds_scaled)
-mse = mean_squared_error(y_test, preds_scaled)
-mape = mean_absolute_percentage_error(y_test,preds_scaled)
-rmse = np.sqrt(mse)
-r2 = r2_score(y_test, preds_scaled)
 
-print(preds_scaled)
-print(y_test)
-print("MAE:", mae)
-print("MSE:", mse)
-print("RMSE:", rmse)
-print("MAPE:", mape)
-print("R²:", r2)
 
+# mae, mape, mse, rmse, r2 = error_metrics(y_test, preds_scaled)
+
+
+
+import matplotlib.pyplot as plt
 # Plot results
 plt.figure(figsize=(12, 6))
 plt.plot(y_test, label="Real", marker="o")
@@ -81,4 +79,30 @@ plt.ylabel("Normalized target")
 plt.legend()
 plt.xticks(ticks=range(0, len(y_test), max(1, len(y_test) // 10)))
 plt.grid(True, which="both", linestyle="--", linewidth=0.5)
-plt.show()
+
+
+plt.tight_layout()
+# plt.savefig("zlast_month_prediction.png", dpi=200)
+
+
+
+
+# Undo scaling:
+
+
+y_test_real = scaler_y.inverse_transform(y_test.reshape(-1, 1)).ravel()
+y_pred_real = scaler_y.inverse_transform(preds_scaled.reshape(-1, 1)).ravel()
+
+mae, mape, mse, rmse, r2 = error_metrics(y_test_real, y_pred_real)
+
+# Plot
+plt.figure(figsize=(12, 6))
+plt.plot(y_test_real, marker="o", label="Real")
+plt.plot(y_pred_real, marker="o", label="Prediction")
+plt.title("Prediction (original scale)")
+plt.xlabel("Weeks")
+plt.ylabel(target_col)
+plt.legend()
+plt.grid(True, linestyle="--", linewidth=0.5)
+plt.tight_layout()
+plt.savefig("plots/z_lasso_prediction.png", dpi=200)

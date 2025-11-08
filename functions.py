@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from lightning.pytorch import Trainer, seed_everything
 from pytorch_forecasting import TimeSeriesDataSet, TemporalFusionTransformer
-from pytorch_forecasting.metrics import MAE, QuantileLoss
+from pytorch_forecasting.metrics import MAE, QuantileLoss, SMAPE
 from pytorch_forecasting.data.encoders import GroupNormalizer
 
 def error_metrics(y_true, y_pred):
@@ -49,6 +49,9 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
     q = [0.1, 0.5, 0.9]  # choose your quantiles
     output_size = len(q)
     loss = QuantileLoss(quantiles=q)
+
+    # loss = SMAPE()
+    # output_size = 1
 
     training = TimeSeriesDataSet(
         data[data.time_idx <= train_cut],  # only the training slice (no future leakage)
@@ -103,12 +106,17 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
 
 
 
+
+
+
     y_true = []
     for x, y in val_loader:
         if isinstance(y, (tuple, list)):
             y = y[0]
         y_true.append(y.detach().cpu().numpy())
     y_true = np.concatenate(y_true).reshape(-1)
+
+
 
     # preds = preds[-test_size:]
     # y_true = y_true[-test_size:]

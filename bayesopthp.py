@@ -19,10 +19,10 @@ if write_header:
     csv_writer.writeheader()
 
 deleted_sample = 0
-test_size    = 4
+test_size    = 24
 target_col   = "FE"
 # Load data
-df = pd.read_csv("test_final_kz.csv")
+df = pd.read_csv("chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
 df = df.sort_values("FECHA")
 df = df.rename(columns=lambda x: x.replace(".", "_"))
@@ -51,7 +51,7 @@ client.configure_experiment(
         ),
         RangeParameterConfig(
             name="epochs",
-            bounds=(20, 100),
+            bounds=(100, 500),
             parameter_type="int",
         ),
         RangeParameterConfig(
@@ -66,23 +66,23 @@ client.configure_experiment(
         ),
         RangeParameterConfig(
             name="hidden_size",
-            bounds=(8, 128),
+            bounds=(8, 256),
             parameter_type="int",
         ),
         RangeParameterConfig(
             name="num_layers",
-            bounds=(8, 64),
+            bounds=(1, 8),
             parameter_type="int",
         ),
         RangeParameterConfig(
             name="window_size",
-            bounds=(8, 48),
+            bounds=(24, 48*2),
             parameter_type="int",
         ),
     ],
 )
-client.configure_optimization(objective="1 * mape")
-iterations = 50
+client.configure_optimization(objective="-1 * mape")
+iterations = 150
 for _ in range(iterations):
     # Use higher value of `max_trials` to run trials in parallel.
     for trial_index, parameters in client.get_next_trials(max_trials=1).items():

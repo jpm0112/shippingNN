@@ -27,7 +27,7 @@ df = df.rename(columns=lambda x: x.replace(".", "_"))
 # --- single model parameters ---
 target_col   = "FE"
 window_size  = 48
-test_size    =24
+test_size    = 24
 d_model      = 128*2
 n_head       = 4*2
 num_layers   = 2 # lstm layers

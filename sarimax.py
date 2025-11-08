@@ -4,18 +4,19 @@ import matplotlib.pyplot as plt
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
-from functions import *
+from functions import error_metrics
 from datetime import datetime
 
 # Load and prepare data
-df = pd.read_csv("test_daily.csv")
-df['FECHA'] = pd.to_datetime(df['FECHA'])
+df = pd.read_csv("chile_data.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"] + "-1", format="%Y-%W-%w")
+
 df = df.sort_values('FECHA')
 
 # Parameters
-target_col = 'MEAN_FLETE_POR_BULTO'
+target_col = 'FE'
 # target_col = "TOTAL_TEUS"
-test_size = 30
+test_size = 24
 feature_cols = [
     col for col in df.columns
     if col not in ['FECHA', target_col] and target_col not in col
@@ -41,7 +42,7 @@ y_test_scaled = target_scaler.transform(y_test.values.reshape(-1, 1)).ravel()
 
 results_df = pd.DataFrame(columns=[
     "seed","test_size","a", "b", "c", "d", "e","f","g","Target",
-    "MAE", "MSE", "RMSE", "r2"
+    "MAE", "MSE", "RMSE","MAPE", "r2"
 ])
 
 seed = 1048596
@@ -80,25 +81,23 @@ for a in ass:
                             )
                             results = model.fit(disp=False)
                             forecast_scaled = results.predict(start=len(train_df), end=len(df)-1, exog=exog_test)
-
-                            mae, mse, rmse, r2 = error_metrics(y_test_scaled, forecast_scaled)
+                            y_pred = target_scaler.inverse_transform(forecast_scaled.reshape(-1, 1)).ravel()
+                            y_true = target_scaler.inverse_transform(y_test_scaled.reshape(-1, 1)).ravel()
+                            mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
 
                             results_df.loc[len(results_df)] = [
-                                seed, test_size, a, b, c, d, e, f, g, target_col, mae, mse, rmse, r2
+                                seed, test_size, a, b, c, d, e, f, g, target_col, mae, mse, rmse, mape,  r2
                             ]
-                            results_df.to_csv(f"model_results_sarima_{timestamp}.csv", index=False)
+                            results_df.to_csv(f"results/model_results_sarima_{timestamp}_{target_col}.csv", index=False)
 
-                        
-
-
-# Plot results (normalized)
-# plt.figure(figsize=(12, 6))
-# plt.plot(y_test_scaled, label='Real (Normalized)')
-# plt.plot(forecast_scaled, label='SARIMA Prediction (Normalized)')
-# plt.title('SARIMA Forecast (Normalized)')
-# plt.xlabel('Days')
-# plt.ylabel('Normalized Target')
-# plt.legend()
-# plt.grid(True, which='both', linestyle='--', linewidth=0.5)
-# plt.xticks(ticks=range(0, len(y_test_scaled), max(1, len(y_test_scaled)//30)))
-# plt.show()
+# Plot
+plt.figure(figsize=(12, 6))
+plt.plot(y_true, marker="o", label="Real")
+plt.plot(y_pred, marker="o", label="Prediction")
+plt.title("Prediction (original scale)")
+plt.xlabel("Weeks")
+plt.ylabel(target_col)
+plt.legend()
+plt.grid(True, linestyle="--", linewidth=0.5)
+plt.tight_layout()
+plt.savefig("plots/z_sarima_prediction.png", dpi=200)
