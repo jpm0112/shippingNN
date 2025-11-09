@@ -322,49 +322,49 @@ def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, nu
     return real, preds
 
 
-def run_sarima(df, target_col, test_size, a, b, c, d, e, f, g):
+def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed):
     feature_cols = [
         col for col in df.columns
-        if col not in ['FECHA', target_col] and target_col not in col
+        if col not in ['FECHA', target_col, 'series'] and target_col not in col
     ]
 
+    # Split
+    seed_everything(seed)
+    train_df = df[:-test_size].copy()
+    test_df  = df[-test_size:].copy()
 
-    # Split into train and test
-    train_df = df[:-test_size]
-    test_df = df[-test_size:]
-
-    # Normalize exogenous features
+    # Scale exogenous
     exog_scaler = StandardScaler()
-    exog_train = exog_scaler.fit_transform(train_df[feature_cols])
-    exog_test = exog_scaler.transform(test_df[feature_cols])
+    exog_train = exog_scaler.fit_transform(train_df[feature_cols]) if feature_cols else None
+    exog_test  = exog_scaler.transform(test_df[feature_cols]) if feature_cols else None
 
-    # Normalize target variable
-    y_train = train_df[target_col]
-    y_test = test_df[target_col]
+    # Scale target
+    y_train = train_df[target_col].values.astype(float)
+    y_test  = test_df[target_col].values.astype(float)
 
-    target_scaler = StandardScaler()
-    y_train_scaled = target_scaler.fit_transform(y_train.values.reshape(-1, 1)).ravel()
-    y_test_scaled = target_scaler.transform(y_test.values.reshape(-1, 1)).ravel()
+    y_scaler = StandardScaler()
+    y_train_scaled = y_scaler.fit_transform(y_train.reshape(-1,1)).ravel()
 
-    if (
-            (c > 0 and f > 0 and (f * g == 2 or c == 2)) or  # MA conflict
-            (a > 0 and d > 0 and (d * g == 2 or a == 2))):
-        print("Skipping invalid SARIMA parameters due to lag conflict.")
-        return ([], [])
-
-    model = SARIMAX(
-        endog=y_train_scaled,
-        order=(a, b, c),
-        seasonal_order=(d, e, f, g),
-        enforce_stationarity=False,
-        enforce_invertibility=False
-    )
-    results = model.fit(disp=False)
-    forecast_scaled = results.predict(start=len(train_df), end=len(df) - 1, exog=exog_test)
-    y_pred = target_scaler.inverse_transform(forecast_scaled.reshape(-1, 1)).ravel()
-    y_true = target_scaler.inverse_transform(y_test_scaled.reshape(-1, 1)).ravel()
-    return  y_true, y_pred
-
+    try:
+        model = SARIMAX(
+            endog=y_train_scaled,
+            exog=exog_train,
+            order=(p, d, q),
+            seasonal_order=(P, D, Q, m),
+            enforce_stationarity=False,
+            enforce_invertibility=False
+        )
+        res = model.fit(disp=False)
+        fc_scaled = res.predict(
+            start=len(train_df),
+            end=len(df)-1,
+            exog=exog_test
+        )
+        y_pred = y_scaler.inverse_transform(np.asarray(fc_scaled).reshape(-1,1)).ravel()
+        y_true = y_test
+        return y_true, y_pred
+    except Exception:
+        return [], []
 
 def run_dnn(df, target_col, window_size, test_size, batch_size, epoch_number, lr, hidden_sizes, dropout, weight_decay, device):
     feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
