@@ -3,3 +3,4 @@
 *.pyc
 notebooks/lightning_logs/**/checkpoints/*.ckpt
 lightning_logs/*
+__pycache__/
