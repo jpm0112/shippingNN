@@ -5,7 +5,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from captum.attr import IntegratedGradients
-from functions import *  # Make sure this contains `error_metrics`
+from functions import error_metrics, run_dnn
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -22,20 +22,46 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 print("Loading data")
 # Load data
-df = pd.read_csv("test_daily.csv")
-df['FECHA'] = pd.to_datetime(df['FECHA'])
+df = pd.read_csv("chile_data.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
 df = df.sort_values('FECHA')
 
-target_col = 'TOTAL_TEUS'
-feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
+target_col = 'FE'
 
 # Model parameters
-window_size = 30
-test_size = 30
+window_size = 48
+test_size = 24
 batch_size = 16
 epoch_number = 1000
 lr = 0.01
+hidden_sizes = [128, 128]
+weight_decay = 1e-4
+dropout = 0.3
 
+real, preds = run_dnn(df, target_col, window_size, test_size, batch_size, epoch_number, lr, hidden_sizes, dropout, weight_decay, device)
+
+
+print("\nError Metrics:")
+error_metrics(real, preds)
+
+plt.figure(figsize=(12, 6))
+plt.plot(real, marker="o", label="Real")
+plt.plot(preds, marker="o", label="Prediction")
+plt.title("Prediction (original scale)")
+plt.xlabel("Weeks")
+plt.ylabel(target_col)
+plt.legend()
+plt.grid(True, linestyle="--", linewidth=0.5)
+plt.tight_layout()
+plt.savefig("plots/dnn_prediction.png", dpi=200)
+
+
+
+# ________________________________
+#FOR INTEGRATED GRADIESNTS PLOTS:
+
+
+feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
 # Split
 train_df = df[:-test_size]
 test_df = df[-(test_size + window_size):]
@@ -81,6 +107,7 @@ X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
 dataset = TensorDataset(X_tensor, y_tensor)
 dataloader = DataLoader(dataset, batch_size, shuffle=False)
 
+
 # DNN Model
 class DNNForecast(nn.Module):
     def __init__(self, input_size, hidden_sizes=[64, 32]):
@@ -97,6 +124,7 @@ class DNNForecast(nn.Module):
 
     def forward(self, x):
         return self.layers(x)
+
 
 model = DNNForecast(input_size=X_train.shape[1]).to(device)
 
@@ -122,9 +150,6 @@ with torch.no_grad():
 
 preds = preds_scaled
 real = np.array(y_test)
-
-print("\nError Metrics:")
-error_metrics(real, preds)
 
 # Plot predictions
 plt.figure(figsize=(12, 6))
