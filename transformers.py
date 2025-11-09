@@ -4,7 +4,7 @@ import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import matplotlib.pyplot as plt
-from functions import *
+from functions import error_metrics, run_transformer
 
 # Configurar dispositivo
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -31,111 +31,17 @@ df = df.sort_values('FECHA')
 # Parámetros
 target_col = 'FE'
 
-feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
-
 # good parameters for container prediction
 window_size = 48
 test_size = 24
 batch_size = 16
-
-
 d_model = 256
 n_head = 2
 num_layers = 2
 epoch_number = 500
 lr = 0.0001
 
-# Split train/test
-train_df = df[:-test_size]
-test_df = df[-(test_size + window_size):]
-
-# Escalamiento manual
-train_features = train_df[feature_cols].values
-train_target = train_df[target_col].values
-min_vals = train_features.min(axis=0)
-max_vals = train_features.max(axis=0)
-target_min = train_target.min()
-target_max = train_target.max()
-
-scaled_train = (train_features - min_vals) / (max_vals - min_vals + 1e-8)
-scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
-
-# Crear ventanas para entrenamiento
-X_train, y_train = [], []
-for i in range(len(train_df) - window_size):
-    X_train.append(scaled_train[i:i + window_size])
-    y_train.append(scaled_target[i + window_size])
-
-X_train = np.array(X_train)
-y_train = np.array(y_train)
-
-# Preparar test
-test_features = test_df[feature_cols].values
-test_target = test_df[target_col].values
-scaled_test = (test_features - min_vals) / (max_vals - min_vals + 1e-8)
-scaled_test_target = (test_target - target_min) / (target_max - target_min + 1e-8)
-
-X_test, y_test = [], []
-for i in range(test_size):
-    X_test.append(scaled_test[i:i + window_size])
-    y_test.append(scaled_test_target[i + window_size])
-
-X_test = np.array(X_test)
-y_test = np.array(y_test)
-
-
-
-
-# Tensores
-X_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
-y_tensor = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1).to(device)
-
-# DataLoader
-dataset = TensorDataset(X_tensor, y_tensor)
-dataloader = DataLoader(dataset, batch_size, shuffle=False)
-
-
-
-# Transformer model
-
-
-class TransformerForecast(nn.Module):
-    def __init__(self, input_size, d_model=d_model, nhead=n_head, num_layers=num_layers):
-        super(TransformerForecast, self).__init__()
-        self.input_linear = nn.Linear(input_size, d_model)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-        self.fc = nn.Linear(d_model, 1)
-
-    def forward(self, x):
-        x = self.input_linear(x)
-        x = self.transformer(x)
-        out = x[:, -1, :]
-        return self.fc(out)
-model = TransformerForecast(input_size=X_train.shape[2]).to(device)
-
-criterion = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=1e-4)
-
-# Entrenamiento
-for epoch in range(epoch_number):
-    for batch_X, batch_y in dataloader:
-        optimizer.zero_grad()
-        output = model(batch_X)
-        loss = criterion(output, batch_y)
-        loss.backward()
-        optimizer.step()
-    if (epoch + 1) % 10 == 0:
-        print(f"Epoch {epoch + 1}, Loss: {loss.item():.4f}")
-
-# Evaluación
-X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
-model.eval()
-with torch.no_grad():
-    preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
-
-preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
-real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
+real, preds = run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, device)
 
 print('')
 print("Error Metrics:")
@@ -151,3 +57,6 @@ plt.legend()
 plt.grid(True, linestyle="--", linewidth=0.5)
 plt.tight_layout()
 plt.savefig("plots/z_transformers_prediction.png", dpi=200)
+
+
+
