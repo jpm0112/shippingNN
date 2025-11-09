@@ -5,7 +5,9 @@ from pytorch_forecasting import TimeSeriesDataSet, TemporalFusionTransformer
 from pytorch_forecasting.metrics import MAE, QuantileLoss, SMAPE
 from pytorch_forecasting.data.encoders import GroupNormalizer
 
-
+from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import StandardScaler
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
@@ -318,3 +320,47 @@ def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, nu
     real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
 
     return real, preds
+
+
+def run_sarima(df, target_col, test_size, a, b, c, d, e, f, g):
+    feature_cols = [
+        col for col in df.columns
+        if col not in ['FECHA', target_col] and target_col not in col
+    ]
+
+
+    # Split into train and test
+    train_df = df[:-test_size]
+    test_df = df[-test_size:]
+
+    # Normalize exogenous features
+    exog_scaler = StandardScaler()
+    exog_train = exog_scaler.fit_transform(train_df[feature_cols])
+    exog_test = exog_scaler.transform(test_df[feature_cols])
+
+    # Normalize target variable
+    y_train = train_df[target_col]
+    y_test = test_df[target_col]
+
+    target_scaler = StandardScaler()
+    y_train_scaled = target_scaler.fit_transform(y_train.values.reshape(-1, 1)).ravel()
+    y_test_scaled = target_scaler.transform(y_test.values.reshape(-1, 1)).ravel()
+
+    if (
+            (c > 0 and f > 0 and (f * g == 2 or c == 2)) or  # MA conflict
+            (a > 0 and d > 0 and (d * g == 2 or a == 2))):
+        print("Skipping invalid SARIMA parameters due to lag conflict.")
+        return ([], [])
+
+    model = SARIMAX(
+        endog=y_train_scaled,
+        order=(a, b, c),
+        seasonal_order=(d, e, f, g),
+        enforce_stationarity=False,
+        enforce_invertibility=False
+    )
+    results = model.fit(disp=False)
+    forecast_scaled = results.predict(start=len(train_df), end=len(df) - 1, exog=exog_test)
+    y_pred = target_scaler.inverse_transform(forecast_scaled.reshape(-1, 1)).ravel()
+    y_true = target_scaler.inverse_transform(y_test_scaled.reshape(-1, 1)).ravel()
+    return  y_true, y_pred

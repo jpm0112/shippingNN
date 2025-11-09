@@ -6,6 +6,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from functions import error_metrics
 from datetime import datetime
+from functions import run_sarima
 
 # Load and prepare data
 df = pd.read_csv("chile_data.csv")
@@ -17,11 +18,29 @@ df = df.sort_values('FECHA')
 target_col = 'FE'
 # target_col = "TOTAL_TEUS"
 test_size = 24
+a = 1
+b = 1
+c = 1
+d = 1
+e = 1
+f = 1
+g = 52
+
+real, preds = run_sarima(df, target_col, test_size, a, b, c, d, e, f, g)
+
+
+
+
+
+
+
+# FOR THE GRID SEARCH   :
+
+
 feature_cols = [
     col for col in df.columns
     if col not in ['FECHA', target_col] and target_col not in col
 ]
-
 # Split into train and test
 train_df = df[:-test_size]
 test_df = df[-test_size:]
