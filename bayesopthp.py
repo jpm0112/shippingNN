@@ -130,4 +130,6 @@ for _ in range(iterations):
         })
         csv_file.flush()
 csv_file.close()
+
+
 print(f"Wrote per-trial results to {csv_path.resolve()}")
