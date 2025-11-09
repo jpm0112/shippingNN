@@ -2,4 +2,4 @@
 .DS_Store
 *.pyc
 notebooks/lightning_logs/**/checkpoints/*.ckpt
-lightning_logs/
+lightning_logs/*
