@@ -1,2 +1,0 @@
-seed,deleted_samples,window_size,test_size,hidden_size,n_head,num_layers,epoch_number,Target,LR,MAE,MAPE,MSE,RMSE,r2
-1048596,0,5,4,64,2,1,5,XSICFEUW Index  (R4),0.001,897.9501953125,19.541897612894452,806314.5532617569,897.9501953125,-inf
