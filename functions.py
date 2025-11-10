@@ -1,17 +1,17 @@
 import numpy as np
 import torch
-from lightning.pytorch import Trainer, seed_everything
-from pytorch_forecasting import TimeSeriesDataSet, TemporalFusionTransformer
-from pytorch_forecasting.metrics import MAE, QuantileLoss, SMAPE
-from pytorch_forecasting.data.encoders import GroupNormalizer
-
-from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import StandardScaler
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-import pandas as pd
-from torch.utils.data import TensorDataset, DataLoader
-import torch.nn as nn
-import matplotlib.pyplot as plt
+# from lightning.pytorch import Trainer, seed_everything
+# from pytorch_forecasting import TimeSeriesDataSet, TemporalFusionTransformer
+# from pytorch_forecasting.metrics import MAE, QuantileLoss, SMAPE
+# from pytorch_forecasting.data.encoders import GroupNormalizer
+#
+# from sklearn.metrics import mean_squared_error
+# from sklearn.preprocessing import StandardScaler
+# from statsmodels.tsa.statespace.sarimax import SARIMAX
+# import pandas as pd
+# from torch.utils.data import TensorDataset, DataLoader
+# import torch.nn as nn
+# import matplotlib.pyplot as plt
 
 # def select_device(prefer: str | None = None) -> torch.device:
 #     """
@@ -49,6 +49,7 @@ import matplotlib.pyplot as plt
 
 
 def device_info(dev: torch.device) -> str:
+    import torch
     """Nice human-readable summary."""
     if dev.type == "cuda":
         idx = torch.cuda.current_device()
@@ -94,6 +95,13 @@ def error_metrics(y_true, y_pred):
 
 def run_tft(data, target_col, window_size, test_size, grad_clip,
             d_model, n_head, num_layers, epoch_number, lr, batch_size, seed, train_cut):
+    from lightning.pytorch import Trainer, seed_everything
+    from pytorch_forecasting import TimeSeriesDataSet, TemporalFusionTransformer
+    from pytorch_forecasting.metrics import QuantileLoss
+    from pytorch_forecasting.data.encoders import GroupNormalizer
+    import torch
+
+
     seed_everything(seed)
     feature_cols = [c for c in data.columns if c not in ["FECHA", target_col, "time_idx", "series"]]
     # time_varying_known_reals = ["time_idx", "dow", "month"]
@@ -173,6 +181,10 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
 
 # receives the data as a pandas dataframe as shown in the transformers.py file
 def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, device, seed):
+    import torch
+    from torch.utils.data import TensorDataset, DataLoader
+    import torch.nn as nn
+    from lightning.pytorch import Trainer, seed_everything
     seed_everything(seed)
     # device = select_device(device if isinstance(device, str) else None)
     print(f"Using device: {device_info(device)}")
@@ -273,7 +285,10 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
 
 
 def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed):
-
+    import torch
+    from torch.utils.data import TensorDataset, DataLoader
+    import torch.nn as nn
+    from lightning.pytorch import Trainer, seed_everything
     seed_everything(seed)
     # device = select_device(device if isinstance(device, str) else None)
     print(f"Using device: {device_info(device)}")
@@ -366,13 +381,18 @@ def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, nu
 
 
 def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed = 1048596):
+
+
+    from sklearn.preprocessing import StandardScaler
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
+
     feature_cols = [
         col for col in df.columns
         if col not in ['FECHA', target_col, 'series'] and target_col not in col
     ]
 
     # Split
-    seed_everything(seed)
+
     train_df = df[:-test_size].copy()
     test_df  = df[-test_size:].copy()
 
@@ -410,6 +430,10 @@ def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed = 1048596):
         return [], []
 
 def run_dnn(df, target_col, window_size, test_size, batch_size, epoch_number, lr, hidden_sizes, dropout, weight_decay, device):
+    import torch
+    from torch.utils.data import TensorDataset, DataLoader
+    import torch.nn as nn
+
     feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
     # Split
     train_df = df[:-test_size]
