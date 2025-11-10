@@ -157,12 +157,6 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
     trainer.fit(tft, train_loader, val_loader)
     preds = tft.predict(val_loader, mode="prediction").cpu().numpy()
     preds = preds[0]
-
-
-
-
-
-
     y_true = []
     for x, y in val_loader:
         if isinstance(y, (tuple, list)):
@@ -178,9 +172,11 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
     return y_true, preds, tft, val_loader, training
 
 # recieves the data as a pandas dataframe as shown in the transformers.py file
-def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, device):
-
-    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
+def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, device, seed):
+    seed_everything(seed)
+    device = select_device(device if isinstance(device, str) else None)
+    print(f"Using device: {device_info(device)}")
+    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
 
     # Split train/test
     train_df = df[:-test_size]
