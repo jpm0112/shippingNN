@@ -13,6 +13,51 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
+def select_device(prefer: str | None = None) -> torch.device:
+    """
+    Choose the best available device.
+    Priority: user preference (if available) > CUDA > MPS (Apple Silicon) > CPU.
+
+    Args:
+        prefer: Optional string preference: "cuda", "mps", or "cpu".
+                If that backend isn't available, falls back automatically.
+
+    Returns:
+        torch.device
+    """
+    # Helper checks
+    cuda_ok = torch.cuda.is_available()
+    mps_ok = getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available()
+
+    # Respect user preference if possible
+    if prefer is not None:
+        pref = prefer.lower()
+        if pref == "cuda" and cuda_ok:
+            return torch.device("cuda")
+        if pref == "mps" and mps_ok:
+            return torch.device("mps")
+        if pref == "cpu":
+            return torch.device("cpu")
+        # If preferred isn't available, continue to fallbacks
+
+    # Auto selection
+    if cuda_ok:
+        return torch.device("cuda")
+    if mps_ok:
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+def device_info(dev: torch.device) -> str:
+    """Nice human-readable summary."""
+    if dev.type == "cuda":
+        idx = torch.cuda.current_device()
+        name = torch.cuda.get_device_name(idx)
+        cap = torch.cuda.get_device_capability(idx)
+        return f"CUDA[{idx}] {name} (cc {cap[0]}.{cap[1]})"
+    if dev.type == "mps":
+        return "Apple Metal (MPS)"
+    return "CPU"
 
 def error_metrics(y_true, y_pred):
     y_true = np.asarray(y_true, dtype=float).ravel()
@@ -231,10 +276,12 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
 
 
 
-def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device):
+def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed):
 
-
-    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
+    seed_everything(seed)
+    device = select_device(device if isinstance(device, str) else None)
+    print(f"Using device: {device_info(device)}")
+    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
     # Split train/test
     train_df = df[:-test_size]
     test_df = df[-(test_size + window_size):]
