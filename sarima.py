@@ -24,7 +24,7 @@ c = 1
 d = 1
 e = 1
 f = 1
-g = 52
+g = 3
 
 real, preds = run_sarima(df, target_col, test_size, a, b, c, d, e, f, g)
 

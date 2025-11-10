@@ -1,0 +1,1 @@
+trial_index,window_size,batch_size,hidden_size,num_layers,epoch_number,lr,mae,mape,mse,rmse,r2,runtime_s,started_at
