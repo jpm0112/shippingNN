@@ -13,39 +13,39 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-def select_device(prefer: str | None = None) -> torch.device:
-    """
-    Choose the best available device.
-    Priority: user preference (if available) > CUDA > MPS (Apple Silicon) > CPU.
-
-    Args:
-        prefer: Optional string preference: "cuda", "mps", or "cpu".
-                If that backend isn't available, falls back automatically.
-
-    Returns:
-        torch.device
-    """
-    # Helper checks
-    cuda_ok = torch.cuda.is_available()
-    mps_ok = getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available()
-
-    # Respect user preference if possible
-    if prefer is not None:
-        pref = prefer.lower()
-        if pref == "cuda" and cuda_ok:
-            return torch.device("cuda")
-        if pref == "mps" and mps_ok:
-            return torch.device("mps")
-        if pref == "cpu":
-            return torch.device("cpu")
-        # If preferred isn't available, continue to fallbacks
-
-    # Auto selection
-    if cuda_ok:
-        return torch.device("cuda")
-    if mps_ok:
-        return torch.device("mps")
-    return torch.device("cpu")
+# def select_device(prefer: str | None = None) -> torch.device:
+#     """
+#     Choose the best available device.
+#     Priority: user preference (if available) > CUDA > MPS (Apple Silicon) > CPU.
+#
+#     Args:
+#         prefer: Optional string preference: "cuda", "mps", or "cpu".
+#                 If that backend isn't available, falls back automatically.
+#
+#     Returns:
+#         torch.device
+#     """
+#     # Helper checks
+#     cuda_ok = torch.cuda.is_available()
+#     mps_ok = getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available()
+#
+#     # Respect user preference if possible
+#     if prefer is not None:
+#         pref = prefer.lower()
+#         if pref == "cuda" and cuda_ok:
+#             return torch.device("cuda")
+#         if pref == "mps" and mps_ok:
+#             return torch.device("mps")
+#         if pref == "cpu":
+#             return torch.device("cpu")
+#         # If preferred isn't available, continue to fallbacks
+#
+#     # Auto selection
+#     if cuda_ok:
+#         return torch.device("cuda")
+#     if mps_ok:
+#         return torch.device("mps")
+#     return torch.device("cpu")
 
 
 def device_info(dev: torch.device) -> str:
@@ -171,10 +171,10 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
 
     return y_true, preds, tft, val_loader, training
 
-# recieves the data as a pandas dataframe as shown in the transformers.py file
+# receives the data as a pandas dataframe as shown in the transformers.py file
 def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, device, seed):
     seed_everything(seed)
-    device = select_device(device if isinstance(device, str) else None)
+    # device = select_device(device if isinstance(device, str) else None)
     print(f"Using device: {device_info(device)}")
     feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
 
@@ -275,7 +275,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
 def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed):
 
     seed_everything(seed)
-    device = select_device(device if isinstance(device, str) else None)
+    # device = select_device(device if isinstance(device, str) else None)
     print(f"Using device: {device_info(device)}")
     feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
     # Split train/test
@@ -365,7 +365,7 @@ def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, nu
     return real, preds
 
 
-def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed):
+def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed = 1048596):
     feature_cols = [
         col for col in df.columns
         if col not in ['FECHA', target_col, 'series'] and target_col not in col

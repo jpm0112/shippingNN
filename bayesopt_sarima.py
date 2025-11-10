@@ -44,17 +44,17 @@ print("Creating experiment...")
 client.configure_experiment(
     name="sarima_experiment",
     parameters=[
-        RangeParameterConfig(name="p", bounds=(0, 5), parameter_type="int"),
+        RangeParameterConfig(name="p", bounds=(0, 48), parameter_type="int"),
         RangeParameterConfig(name="d", bounds=(0, 2), parameter_type="int"),
         RangeParameterConfig(name="q", bounds=(0, 5), parameter_type="int"),
         RangeParameterConfig(name="P", bounds=(0, 2), parameter_type="int"),
-        RangeParameterConfig(name="D", bounds=(0, 1), parameter_type="int"),
+        RangeParameterConfig(name="D", bounds=(0, 2), parameter_type="int"),
         RangeParameterConfig(name="Q", bounds=(0, 2), parameter_type="int"),
-        ChoiceParameterConfig(name="m", values=[7, 12, 24, 52], parameter_type="int", is_ordered=True),
+        ChoiceParameterConfig(name="m", values=[7, 12, 24], parameter_type="int", is_ordered=True),
     ],
 )
 client.configure_optimization(objective="-mape")
-iterations = 5
+iterations = 20
 for _ in range(iterations):
     # Use higher value of `max_trials` to run trials in parallel.
     for trial_index, parameters in client.get_next_trials(max_trials=1).items():

@@ -15,11 +15,11 @@ print("Using device:", device)
 
 import random
 
-SEED = 1048596
-random.seed(SEED)
-np.random.seed(SEED)
-torch.manual_seed(SEED)
-torch.cuda.manual_seed_all(SEED)
+seed = 1048596
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
@@ -41,7 +41,9 @@ num_layers = 2
 epoch_number = 500
 lr = 0.0001
 
-real, preds = run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, device)
+
+
+real, preds = run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, device, seed)
 
 print('')
 print("Error Metrics:")
