@@ -409,8 +409,12 @@ def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed):
     except Exception:
         return [], []
 
-def run_dnn(df, target_col, window_size, test_size, batch_size, epoch_number, lr, hidden_sizes, dropout, weight_decay, device):
-    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
+def run_dnn(df, target_col, window_size, test_size, batch_size, epoch_number, lr, hidden_sizes, dropout, weight_decay, device, seed):
+
+    seed_everything(seed)
+    device = select_device(device if isinstance(device, str) else None)
+    print(f"Using device: {device_info(device)}")
+    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
     # Split
     train_df = df[:-test_size]
     test_df = df[-(test_size + window_size):]
