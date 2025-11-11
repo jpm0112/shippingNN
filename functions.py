@@ -104,12 +104,12 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
     time_varying_known_reals = ["time_idx"]
     time_varying_unknown_reals = [target_col] + feature_cols
 
-    q = [0.1, 0.5, 0.9]  # choose your quantiles
+    q = [0.5]  # choose your quantiles
     output_size = len(q)
     loss = QuantileLoss(quantiles=q)
 
-    # loss = SMAPE()
-    # output_size = 1
+    loss = SMAPE()
+    output_size = 1
 
     training = TimeSeriesDataSet(
         data[data.time_idx <= train_cut],  # only the training slice (no future leakage)
