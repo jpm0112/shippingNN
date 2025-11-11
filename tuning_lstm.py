@@ -40,8 +40,8 @@ csv_writer = csv.DictWriter(csv_file, fieldnames=[
 csv_writer.writeheader()
 
 # ==== Ax setup ====
-ax = AxClient()
-ax.create_experiment(
+client = AxClient()
+client.create_experiment(
     name="lstm_experiment",
     parameters=[
         {"name": "window_size", "type": "range", "bounds": [12, 168], "value_type": "int"},
@@ -51,7 +51,7 @@ ax.create_experiment(
         {"name": "hidden_size", "type": "range", "bounds": [32, 256], "value_type": "int"},
         {"name": "num_layers", "type": "range", "bounds": [1, 5], "value_type": "int"},
     ],
-    objectives={"mape": ObjectiveProperties(minimize=True)}
+    objectives={"r2": ObjectiveProperties(minimize=False)}
 
 )
 
@@ -59,7 +59,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 iterations = 5
 
 for _ in range(iterations):
-    params, trial_index = ax.get_next_trial()
+    params, trial_index = client.get_next_trial()
     started_at = datetime.now()
 
     # === Train/eval using your function ===
@@ -81,7 +81,7 @@ for _ in range(iterations):
     runtime_s = (datetime.now() - started_at).total_seconds()
 
     # Report to Ax (objective is "mape")
-    ax.complete_trial(trial_index=trial_index, raw_data={"mape": float(mape)})
+    client.complete_trial(trial_index=trial_index, raw_data={"mape": float(mape)})
 
     # Persist row
     csv_writer.writerow({
