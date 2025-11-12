@@ -234,18 +234,27 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
 
 
     class TransformerForecast(nn.Module):
-        def __init__(self, input_size, d_model=d_model, nhead=n_head, num_layers=num_layers):
-            super(TransformerForecast, self).__init__()
+        def __init__(self, input_size, d_model=d_model, nhead=n_head, num_layers=num_layers, max_len=window_size):
+            super().__init__()
             self.input_linear = nn.Linear(input_size, d_model)
-            encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
+
+            # learned positional encodings
+            self.positional_encoding = nn.Parameter(torch.zeros(1, max_len, d_model))
+            nn.init.normal_(self.positional_encoding, std=0.02)
+
+            # single (clean) definition
+            encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_head, batch_first=True)
             self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
             self.fc = nn.Linear(d_model, 1)
 
         def forward(self, x):
-            x = self.input_linear(x)
+            x = self.input_linear(x)  # (B, T, D)
+            # >>> add positions <<<
+            x = x + self.positional_encoding[:, :x.size(1), :]
             x = self.transformer(x)
             out = x[:, -1, :]
             return self.fc(out)
+
 
 
     model = TransformerForecast(input_size=X_train.shape[2]).to(device)
