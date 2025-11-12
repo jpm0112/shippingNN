@@ -13,6 +13,8 @@ deleted_sample = 0
 test_size = 24
 target_col = "FE"
 
+metric = "mape"
+
 df = pd.read_csv("chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
 df = df.sort_values("FECHA")
@@ -29,7 +31,6 @@ if deleted_sample > 0:
 # ==== CSV ====
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 results_dir = Path("results");
-results_dir.mkdir(exist_ok=True)
 csv_path = results_dir / f"lstm_trials_{timestamp}.csv"
 csv_file = csv_path.open("w", newline="")
 csv_writer = csv.DictWriter(csv_file, fieldnames=[
@@ -44,19 +45,19 @@ client = AxClient()
 client.create_experiment(
     name="lstm_experiment",
     parameters=[
-        {"name": "window_size", "type": "range", "bounds": [12, 168], "value_type": "int"},
+        {"name": "window_size", "type": "range", "bounds": [42, 43], "value_type": "int"},
         {"name": "lr", "type": "range", "bounds": [1e-5, 1e-1], "log_scale": True},
-        {"name": "epoch_number", "type": "range", "bounds": [50, 200], "value_type": "int"},
-        {"name": "batch_size", "type": "choice", "values": [16, 32, 64, 128]},
-        {"name": "hidden_size", "type": "range", "bounds": [32, 256], "value_type": "int"},
-        {"name": "num_layers", "type": "range", "bounds": [1, 5], "value_type": "int"},
+        {"name": "epoch_number", "type": "range", "bounds": [50, 1000], "value_type": "int"},
+        {"name": "batch_size", "type": "choice", "values": [16, 32, 64]},
+        {"name": "hidden_size", "type": "range", "bounds": [32, 512], "value_type": "int"},
+        {"name": "num_layers", "type": "range", "bounds": [1, 10], "value_type": "int"},
     ],
-    objectives={"r2": ObjectiveProperties(minimize=False)}
+    objectives={metric: ObjectiveProperties(minimize=True)}
 
 )
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-iterations = 5
+iterations = 200
 
 for _ in range(iterations):
     params, trial_index = client.get_next_trial()
@@ -81,7 +82,7 @@ for _ in range(iterations):
     runtime_s = (datetime.now() - started_at).total_seconds()
 
     # Report to Ax (objective is "mape")
-    client.complete_trial(trial_index=trial_index, raw_data={"mape": float(mape)})
+    ax.complete_trial(trial_index=trial_index, raw_data={metric: float(mape)})
 
     # Persist row
     csv_writer.writerow({

@@ -46,8 +46,8 @@ tmp = df.copy()
 tmp = tmp.sort_values("FECHA").copy()
 tmp["series"] = "kz"
 tmp["time_idx"] = tmp.groupby("series").cumcount()
-# tmp["dow"] = tmp["FECHA"].dt.weekday.astype(int)
-# tmp["month"] = tmp["FECHA"].dt.month.astype(int)
+tmp["dow"] = tmp["FECHA"].dt.weekday.astype(int)
+tmp["month"] = tmp["FECHA"].dt.month.astype(int)
 if deleted_sample > 0:
     tmp = tmp.iloc[:-deleted_sample]
 
