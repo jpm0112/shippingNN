@@ -98,12 +98,40 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
 
 
 
+
     seed_everything(seed)
+    data["trend"] = np.arange(len(data))
     feature_cols = [c for c in data.columns if c not in ["FECHA", target_col, "time_idx", "series"]]
-    # time_varying_known_reals = ["time_idx", "dow", "month"]
-    time_varying_known_reals = ["time_idx"]
+
+    time_varying_known_reals = ["time_idx", "dow", "month", "trend"]
+
+
+
+
+
     time_varying_unknown_reals = [target_col] + feature_cols
 
+    # everything you want lagged must be "unknown" (past-only at predict time)
+    laggable_feats = [c for c in data.columns if c not in ["FECHA", "series", target_col] and c not in time_varying_known_reals]
+    time_varying_unknown_reals = [target_col] + laggable_feats
+
+    # lags for target + ALL other variables (choose ranges you can afford)
+    lags_dict = {target_col: list(range(1, window_size + 1))}
+
+
+    for c in laggable_feats:
+        lags_dict[c] = [1, 2, 3, 6, 12]
+
+
+
+    # for c in laggable_feats:
+    #     # option A: full window (heavy)
+    #     lags_dict[c] = list(range(1, window_size + 1))
+    #     # option B: lighter set (uncomment to use)
+    #     # lags_dict[c] = [1,2,3,6,12,24]  # e.g., short + seasonal
+
+
+    # OUTPUT SHAPE
     q = [0.5]  # choose your quantiles
     output_size = len(q)
     loss = QuantileLoss(quantiles=q)
@@ -111,10 +139,13 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
     loss = SMAPE()
     output_size = 1
 
+
+
     training = TimeSeriesDataSet(
         data[data.time_idx <= train_cut],  # only the training slice (no future leakage)
         time_idx="time_idx",  # column representing the time ordering (0,1,2,...)
         target=target_col,  # the variable you want to forecast
+
         group_ids=["series"],  # identifies each time series (you have one: "kz")
         max_encoder_length=window_size,  # how many past steps the model sees as input
         min_encoder_length=window_size,  # force this length (no variable window)
@@ -126,7 +157,12 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
         # features that are only known up to “now” (target and lagged features)
         static_categoricals=["series"],  # series label — constant across time
         target_normalizer=GroupNormalizer(groups=["series"]),  # normalize per series (mean/std or quantiles)
-        allow_missing_timesteps=True,  # let the dataset handle gaps in time_idx
+        allow_missing_timesteps=False,  # let the dataset handle gaps in time_idx
+        lags=lags_dict,  # ← THIS GIVES THE MODEL MEMORY
+        add_relative_time_idx=True,
+        add_target_scales=True,
+        add_encoder_length=True,
+
     )
 
     validation = TimeSeriesDataSet.from_dataset(
