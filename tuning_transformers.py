@@ -58,7 +58,7 @@ ax.create_experiment(
         {"name": "window_size", "type": "range", "bounds": [42,43], "value_type": "int"},
         # model width and heads; ensure divisibility (checked below)
         {"name": "d_model", "type": "choice", "values": [64, 96, 128, 256, 512]},
-        {"name": "n_head", "type": "choice", "values": [2, 4, 6, 8]},
+        {"name": "n_head", "type": "choice", "values": [2, 4, 8]},
         # LSTM layers inside TFT encoder/decoder in your run_tft
         {"name": "num_layers", "type": "range", "bounds": [1, 20], "value_type": "int"},
         {"name": "dropout", "type": "range", "bounds": [0.0, 0.5]},
