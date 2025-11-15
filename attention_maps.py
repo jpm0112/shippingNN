@@ -44,6 +44,8 @@ deleted_sample = 0
 # Preprocess
 tmp = df.copy()
 tmp = tmp.sort_values("FECHA").copy()
+
+
 tmp["series"] = "kz"
 tmp["time_idx"] = tmp.groupby("series").cumcount()
 tmp["dow"] = tmp["FECHA"].dt.weekday.astype(int)
@@ -51,8 +53,14 @@ tmp["month"] = tmp["FECHA"].dt.month.astype(int)
 if deleted_sample > 0:
     tmp = tmp.iloc[:-deleted_sample]
 
+
+
+
+
+
 # get the number of indices for training ( np.int64(213) for example)
 train_cut = tmp["time_idx"].max() - test_size
+
 
 
 start = datetime.now()
