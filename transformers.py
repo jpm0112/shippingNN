@@ -35,13 +35,12 @@ target_col = 'FE'
 window_size = 48
 test_size = 24
 batch_size = 16
-d_model = 256
-n_head = 2
-num_layers = 2
-epoch_number = 500
-lr = 0.0001
+d_model = 512
+n_head = 8
+num_layers = 1
+epoch_number = 600
 
-
+lr = 0.000320022890109655
 
 real, preds = run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, device, seed)
 
