@@ -57,7 +57,7 @@ client.create_experiment(
 )
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-iterations = 200
+iterations = 500
 
 for _ in range(iterations):
     params, trial_index = client.get_next_trial()
