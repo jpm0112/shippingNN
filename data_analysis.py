@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.metrics import mean_absolute_error
 from functions import error_metrics
 
-df = pd.read_csv("chile_data.csv")
+df = pd.read_csv("weekly_uruguay_data.csv")
 
 # Convert date if needed (optional)
 # df["FECHA"] = pd.to_datetime(df["FECHA"] + "-1", format="%Y-%W-%w")
@@ -24,7 +24,7 @@ plt.savefig("zcorrelations.png", dpi=200)
 
 
 # naive forecasting
-y = df["SAE"].values
+y = df["FE"].values
 y_true = y[1:]  # from second point onward
 y_naive = y[:-1]  # previous value as prediction
 
@@ -34,5 +34,23 @@ mae, mape, mse, rmse, r2 = error_metrics(y_true, y_naive)
 
 from statsmodels.graphics.tsaplots import plot_acf
 
-plot_acf(df["SAE"].dropna(), lags=30)
+plot_acf(df["FE"].dropna(), lags=30)
 plt.savefig("z_autocorrelation.png", dpi=200)
+
+df_no_fe = df.drop(columns=["FE"])
+
+
+df_num = df_no_fe.select_dtypes(include=["number"])
+
+corr = df_num.corr()
+print(corr)
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(10, 8))
+plt.imshow(corr, interpolation="nearest")
+plt.colorbar()
+plt.xticks(range(len(corr.columns)), corr.columns, rotation=90)
+plt.yticks(range(len(corr.columns)), corr.columns)
+plt.tight_layout()
+plt.show()
