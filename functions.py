@@ -313,8 +313,14 @@ def run_transformer2(df, target_col, window_size, test_size, batch_size, d_model
 
 
 def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr,
-                    device, seed, optimizer_type='adamw',weight_decay=1e-4):
+                    device, seed, optimizer_type='adam',weight_decay=1e-4):
+
     seed_everything(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     # device = select_device(device if isinstance(device, str) else None)
     print(f"Using device: {device_info(device)}")
     feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
