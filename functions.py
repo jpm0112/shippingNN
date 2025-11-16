@@ -98,12 +98,40 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
 
 
 
+
     seed_everything(seed)
+    data["trend"] = np.arange(len(data))
     feature_cols = [c for c in data.columns if c not in ["FECHA", target_col, "time_idx", "series"]]
-    # time_varying_known_reals = ["time_idx", "dow", "month"]
-    time_varying_known_reals = ["time_idx"]
+
+    time_varying_known_reals = ["time_idx", "dow", "month", "trend"]
+
+
+
+
+
     time_varying_unknown_reals = [target_col] + feature_cols
 
+    # everything you want lagged must be "unknown" (past-only at predict time)
+    laggable_feats = [c for c in data.columns if c not in ["FECHA", "series", target_col] and c not in time_varying_known_reals]
+    time_varying_unknown_reals = [target_col] + laggable_feats
+
+    # lags for target + ALL other variables (choose ranges you can afford)
+    lags_dict = {target_col: list(range(1, window_size + 1))}
+
+
+    for c in laggable_feats:
+        lags_dict[c] = [1, 2, 3, 6, 12]
+
+
+
+    # for c in laggable_feats:
+    #     # option A: full window (heavy)
+    #     lags_dict[c] = list(range(1, window_size + 1))
+    #     # option B: lighter set (uncomment to use)
+    #     # lags_dict[c] = [1,2,3,6,12,24]  # e.g., short + seasonal
+
+
+    # OUTPUT SHAPE
     q = [0.5]  # choose your quantiles
     output_size = len(q)
     loss = QuantileLoss(quantiles=q)
@@ -111,10 +139,13 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
     loss = SMAPE()
     output_size = 1
 
+
+
     training = TimeSeriesDataSet(
         data[data.time_idx <= train_cut],  # only the training slice (no future leakage)
         time_idx="time_idx",  # column representing the time ordering (0,1,2,...)
         target=target_col,  # the variable you want to forecast
+
         group_ids=["series"],  # identifies each time series (you have one: "kz")
         max_encoder_length=window_size,  # how many past steps the model sees as input
         min_encoder_length=window_size,  # force this length (no variable window)
@@ -126,7 +157,12 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
         # features that are only known up to “now” (target and lagged features)
         static_categoricals=["series"],  # series label — constant across time
         target_normalizer=GroupNormalizer(groups=["series"]),  # normalize per series (mean/std or quantiles)
-        allow_missing_timesteps=True,  # let the dataset handle gaps in time_idx
+        allow_missing_timesteps=False,  # let the dataset handle gaps in time_idx
+        lags=lags_dict,  # ← THIS GIVES THE MODEL MEMORY
+        add_relative_time_idx=True,
+        add_target_scales=True,
+        add_encoder_length=True,
+
     )
 
     validation = TimeSeriesDataSet.from_dataset(
@@ -176,7 +212,7 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
     return y_true, preds, tft, val_loader, training
 
 # receives the data as a pandas dataframe as shown in the transformers.py file
-def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, device, seed):
+def run_transformer2(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, device, seed):
 
     seed_everything(seed)
     # device = select_device(device if isinstance(device, str) else None)
@@ -284,6 +320,124 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
 
     return real, preds
 
+
+def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr,
+                    device, seed, optimizer_type='adam',weight_decay=1e-4):
+
+    seed_everything(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # device = select_device(device if isinstance(device, str) else None)
+    print(f"Using device: {device_info(device)}")
+    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
+
+    # Split train/test
+    train_df = df[:-test_size]
+    test_df = df[-(test_size + window_size):]
+
+    # Escalamiento manual
+    train_features = train_df[feature_cols].values
+    train_target = train_df[target_col].values
+    min_vals = train_features.min(axis=0)
+    max_vals = train_features.max(axis=0)
+    target_min = train_target.min()
+    target_max = train_target.max()
+
+    scaled_train = (train_features - min_vals) / (max_vals - min_vals + 1e-8)
+    scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
+
+    # Crear ventanas para entrenamiento
+    X_train, y_train = [], []
+    for i in range(len(train_df) - window_size):
+        X_train.append(scaled_train[i:i + window_size])
+        y_train.append(scaled_target[i + window_size])
+
+    X_train = np.array(X_train)
+    y_train = np.array(y_train)
+
+    # Preparar test
+    test_features = test_df[feature_cols].values
+    test_target = test_df[target_col].values
+    scaled_test = (test_features - min_vals) / (max_vals - min_vals + 1e-8)
+    scaled_test_target = (test_target - target_min) / (target_max - target_min + 1e-8)
+
+    X_test, y_test = [], []
+    for i in range(test_size):
+        X_test.append(scaled_test[i:i + window_size])
+        y_test.append(scaled_test_target[i + window_size])
+
+    X_test = np.array(X_test)
+    y_test = np.array(y_test)
+
+    # Tensores
+    X_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
+    y_tensor = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1).to(device)
+
+    # DataLoader
+    dataset = TensorDataset(X_tensor, y_tensor)
+    dataloader = DataLoader(dataset, batch_size, shuffle=False)
+
+    # Transformer model
+
+    class TransformerForecast(nn.Module):
+        def __init__(self, input_size, d_model=d_model, nhead=n_head, num_layers=num_layers, max_len=window_size):
+            super().__init__()
+            self.input_linear = nn.Linear(input_size, d_model)
+
+            # learned positional encodings
+            self.positional_encoding = nn.Parameter(torch.zeros(1, max_len, d_model))
+            nn.init.normal_(self.positional_encoding, std=0.02)
+
+            # single (clean) definition
+            encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_head, batch_first=True)
+            self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+            self.fc = nn.Linear(d_model, 1)
+
+        def forward(self, x):
+            x = self.input_linear(x)  # (B, T, D)
+            # >>> add positions <<<
+            x = x + self.positional_encoding[:, :x.size(1), :]
+            x = self.transformer(x)
+            out = x[:, -1, :]
+            return self.fc(out)
+
+    model = TransformerForecast(input_size=X_train.shape[2]).to(device)
+
+    criterion = nn.MSELoss()
+    if optimizer_type == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=weight_decay)
+    if optimizer_type == 'adamw':
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    if optimizer_type == 'sgd':
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=0.9)
+    if optimizer_type == 'Adagrad':
+        optimizer = torch.optim.Adagrad(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+
+    # Entrenamiento
+    for epoch in range(epoch_number):
+        for batch_X, batch_y in dataloader:
+            optimizer.zero_grad()
+            output = model(batch_X)
+            loss = criterion(output, batch_y)
+            loss.backward()
+            optimizer.step()
+        if (epoch + 1) % 10 == 0:
+            print(f"Epoch {epoch + 1}, Loss: {loss.item():.4f}")
+
+    # Evaluación
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
+    model.eval()
+    with torch.no_grad():
+        preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
+
+    preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
+    real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
+
+    return real, preds
 
 
 def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed):
