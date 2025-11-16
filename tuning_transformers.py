@@ -16,11 +16,18 @@ from functions import run_transformer, error_metrics
 deleted_sample = 0
 test_size = 24
 target_col = "FE"
+target_col = "Far East_container_cost"
 metric = "mape"  # objective to minimize
 minimize = True
 
-df = pd.read_csv("chile_data.csv")
-df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
+df = pd.read_csv("uruguay_data.csv")
+
+# for uruguay data
+df.rename(columns={"week": "FECHA"}, inplace=True)
+df["FECHA"] = pd.to_datetime(df["FECHA"])
+
+
+# df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
 df = df.sort_values("FECHA").rename(columns=lambda x: x.replace(".", "_"))
 
 tmp = df.copy().sort_values("FECHA")
@@ -33,7 +40,7 @@ if deleted_sample > 0:
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 results_dir = Path("results");
 results_dir.mkdir(parents=True, exist_ok=True)
-csv_path = results_dir / f"transformer_trials_{timestamp}.csv"
+csv_path = results_dir / f"transformer_trials_{timestamp}_uruguay.csv"
 csv_file = csv_path.open("w", newline="")
 csv_writer = csv.DictWriter(csv_file, fieldnames=[
     "trial_index",
