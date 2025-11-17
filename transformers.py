@@ -26,6 +26,11 @@ torch.backends.cudnn.benchmark = False
 # Leer y preparar datos
 df = pd.read_csv("chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
+
+df = pd.read_csv("weekly_uruguay_data.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"])
+df = df.drop(columns=["WEEK"])
+
 df = df.sort_values('FECHA')
 
 # Parámetros

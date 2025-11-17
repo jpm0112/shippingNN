@@ -20,9 +20,9 @@ upper = np.triu(corr, k=1)
 to_drop = [column for column in corr.columns if any(upper[:, corr.columns.get_loc(column)] > 0.95)]
 
 df_without_targets = df_without_targets.drop(columns=to_drop)
-cols_to_drop.extend(to_drop)
+cols_to_drop += to_drop
 
-df = df.drop(columns=to_drop)
+df = df.drop(columns=cols_to_drop)
 
 threshold = 0.95
 corr = df_without_targets.corr().abs()

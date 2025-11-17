@@ -403,5 +403,8 @@ for filename in os.listdir(folder):
 new_columns = [col for col in daily_df.columns if col not in original_columns]
 daily_df[new_columns] = daily_df[new_columns].fillna(method='ffill').fillna(method='bfill')
 
+
+
+
 daily_df.to_csv("weekly_uruguay_data.csv", index=False)
 
