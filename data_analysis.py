@@ -5,7 +5,37 @@ from sklearn.metrics import mean_absolute_error
 from functions import error_metrics
 
 df = pd.read_csv("weekly_uruguay_data.csv")
+df_without_targets = df.drop(columns=["FE", "NA","SA","NE","SE"])
 
+
+
+cols_to_drop = df_without_targets.columns[df_without_targets.nunique() == 1].tolist()
+cols_to_drop += ["INCOTERMS","PAIS_ORIGEN"]
+cols_to_drop_temp = ["WEEK", "FECHA"]
+df_without_targets = df_without_targets.drop(columns=cols_to_drop)
+df_without_targets = df_without_targets.drop(columns=cols_to_drop_temp)
+
+corr = df_without_targets.corr().abs()
+upper = np.triu(corr, k=1)
+to_drop = [column for column in corr.columns if any(upper[:, corr.columns.get_loc(column)] > 0.95)]
+
+df_without_targets = df_without_targets.drop(columns=to_drop)
+cols_to_drop.extend(to_drop)
+
+df = df.drop(columns=to_drop)
+
+threshold = 0.95
+corr = df_without_targets.corr().abs()
+
+pairs = []
+for i in range(len(corr.columns)):
+    for j in range(i + 1, len(corr.columns)):
+        if corr.iloc[i, j] > threshold:
+            pairs.append((corr.columns[i], corr.columns[j], corr.iloc[i, j]))
+
+pairs
+
+df.to_csv("weekly_uruguay_data.csv", index=False)
 # Convert date if needed (optional)
 # df["FECHA"] = pd.to_datetime(df["FECHA"] + "-1", format="%Y-%W-%w")
 
