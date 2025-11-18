@@ -100,7 +100,7 @@ df = df.drop(columns=["pais_procedencia","unidad_comercial","unidad_estadistica"
 df["TEU"] = np.ceil(df["peso_bruto_total"] / 14000)
 df["flete_per_TEU"] = df["flete_item_usd"] / df["TEU"]
 
-df = df[df["flete_per_TEU"] > 50]
+df = df[df["flete_per_TEU"] > 100]
 
 df = df[df["flete_per_TEU"] < 500000]
 
@@ -351,15 +351,18 @@ daily_df = daily_df.rename(columns=rename_dict)
 daily_df = daily_df.merge(weekly_region_pivot, on="WEEK", how="left")
 
 
-
 def pivot_and_merge(main_df, series_df, group_col, value_col, agg_func='sum'):
     """Helper to perform pivot-like aggregation and merge."""
-    pivot_df = series_df.groupby(['FECHA', group_col])[value_col].agg(agg_func).unstack(fill_value=0)
-    pivot_df = pivot_df.add_prefix(f'COUNT_{group_col}_')  # Add prefix for clarity
-    return main_df.merge(pivot_df, on='FECHA', how='left')
+    pivot_df = series_df.groupby(['WEEK', group_col])[value_col].agg(agg_func).unstack(fill_value=0)
+
+    func_name = agg_func if isinstance(agg_func, str) else agg_func.__name__
+    prefix = f"{func_name.upper()}_{value_col}_"
+    pivot_df = pivot_df.add_prefix(prefix)  # Add prefix for clarity
+    return main_df.merge(pivot_df, on='WEEK', how='left')
 
 
 daily_df = pivot_and_merge(daily_df, df, 'pais_origen', 'TEU')
+daily_df = pivot_and_merge(daily_df, df, 'pais_origen', 'flete_per_TEU', agg_func='mean')
 daily_df = pivot_and_merge(daily_df, df, 'tipo_operacion', 'TEU')
 daily_df = pivot_and_merge(daily_df, df, 'incoterms', 'TEU')
 daily_df = pivot_and_merge(daily_df, df, 'aduana', 'TEU')
@@ -398,6 +401,18 @@ for filename in os.listdir(folder):
                         'Close_pct_change': f'{name}_pct_change'
                     })
 
+                macro_filtered["WEEK"] = macro_filtered["FECHA"].dt.to_period("W").dt.start_time
+                weekly_macro_df = macro_filtered.groupby("WEEK", as_index=False).agg({
+                    'FECHA': 'first',
+                    f'{name}_price': 'first',
+                    f'{name}_volume': 'sum',
+                })
+
+                col = f"{name}_weekly_pct_change"
+                weekly_macro_df[col] = weekly_macro_df[f"{name}_price"].pct_change()
+                weekly_macro_df = weekly_macro_df.drop(columns=['FECHA'])
+
+                daily_df = pd.merge(daily_df, weekly_macro_df, how='left', on='WEEK')
                 daily_df = pd.merge(daily_df, macro_filtered, how='left', on='FECHA')
 
 new_columns = [col for col in daily_df.columns if col not in original_columns]

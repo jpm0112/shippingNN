@@ -6,7 +6,7 @@ import gc
 folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\container_data"
 all_files = glob.glob(os.path.join(folder, "*.csv"))
 
-df_list = [pd.read_csv(f) for f in all_files]
+df_list = [pd.read_csv(f) for f in all_files[0:3]]
 df = pd.concat(df_list, ignore_index=True)
 
 
@@ -37,8 +37,8 @@ for col in df.select_dtypes(include='int').columns:
 
 df['TIPO DE BULTO'] = df['TIPO DE BULTO'].astype('category')
 
-# df = df.applymap(lambda x: x.replace('Ñ', 'N') if isinstance(x, str) else x)
-# df = df.applymap(lambda x: x.replace('Ã‘', 'N') if isinstance(x, str) else x)
+df = df.applymap(lambda x: x.replace('Ñ', 'N') if isinstance(x, str) else x)
+df = df.applymap(lambda x: x.replace('Ã‘', 'N') if isinstance(x, str) else x)
 
 
 
@@ -57,40 +57,414 @@ df = df[df['TIPO DE BULTO'].isin(contenedores)].copy()
 df.rename(columns={'DIA': 'day', 'MES': 'month', 'ANO': 'year'}, inplace=True)
 df['FECHA'] = pd.to_datetime(df[['year', 'month', 'day']], errors='coerce')
 
+df = df.drop(columns=["DIGITO VERIFICADOR RUT", 'PRODUCTO', 'MARCA', 'VARIEDAD', 'DESCRIPCION',
+                      'VIA DE TRANSPORTE','FORMA PAGO','TIPO DE CARGA',"ZONA ECONOMICA",
+                      'CLAVE ECONOMICA IMPORTADOR','ALMACEN','FECHA DE ALMACEN','ACUERDO COMERCIAL',
+                      'ESTADO DE MERCANCIA',"EMISOR",'PROBABLE IMPORTADOR','PAIS DE ADQUISICION',
+                      'TIPO DE OPERACION','DESCRIPCION ARANCELARIA'])
+
+df = df.groupby("NUMERO DE ACEPTACION", as_index=False).agg({
+    'FECHA': 'first',
+    'day': 'first',
+    'month': 'first',
+    'year': 'first',
+    'ADUANA': 'first',
+    'RUT PROBABLE IMPORTADOR': 'first',
+    'PARTIDA ARANCELARIA': 'nunique',
+    'PAIS DE ORIGEN': 'first',
+    'PUERTO DE EMBARQUE': 'first',
+    'PUERTO DE DESEMBARQUE': 'first',
+    'COMPANIA DE TRANSPORTE': 'first',
+    'TIPO DE BULTO': 'first',
+    'PESO BRUTO TOTAL': 'first',
+    'CLAUSULA': 'first',
+    'IMPUESTO': 'first',
+    'CANTIDAD': 'sum',
+    'UNIDAD': 'first',
+    'US$ FOB': 'sum',
+    'US$ FLETE': 'sum',
+    'US$ SEGURO': 'sum',
+    'US$ CIF': 'sum',
+    'US$ CIF UNIT': 'first',
+    'NUM DE ITEM': 'max',
+    'PAIS COMPANIA DE TRANSPORTE': 'first',
+    'IMPUESTO US$': 'sum',
+    'CANTIDAD DE BULTO': 'first',
+    'NRO DE MANIFIESTO': 'first',
+    'NRO DOC. TRANSPORTE': 'first',
+    'FECHA DOC. TRANSPORTE': 'first',
+    'ITEMS TOTALES': 'first',
+    'FOB TOTAL': 'first',
+    'FLETE TOTAL': 'first',
+    'SEGURO TOTAL': 'first',
+    'CIF TOTAL': 'first',
+    'TOTAL IVA': 'first',
+    'US$ FOB UNIT': 'first',
+    'CANTIDAD UNIDADES FISICAS': 'first',
+    'UNIDAD DE MEDIDA FISICA': 'first',
+    'FECHA': 'first'
+
+})
+
+
+
 df['FECHA_DOC_TRANSPORTE'] = pd.to_datetime(df['FECHA DOC. TRANSPORTE'], format='%d%m%Y', errors='coerce')
 
 df['DIFF FECHA DIN Y DOC TRANSPORTE'] = (df['FECHA'] - df['FECHA_DOC_TRANSPORTE']).dt.days
 
-df['FOB_POR_BULTO'] = df['FOB TOTAL'] / df['CANTIDAD DE BULTO']
-df['FLETE_POR_BULTO'] = df['FLETE TOTAL'] / df['CANTIDAD DE BULTO']
-df['SEGURO_POR_BULTO'] = df['SEGURO TOTAL'] / df['CANTIDAD DE BULTO']
+map_teu = {
+    "CONTENEDOR 20": 1,
+    "CONTENEDOR 40": 2,
+    "CONTENEDOR REFRIGERADO 40": 2,
+    "CONTENEDOR REFRIGERADO 20": 1
+}
+df["CANTIDAD DE BULTO"] = pd.to_numeric(df["CANTIDAD DE BULTO"], errors="raise")
+df["TEU_factor"] = df["TIPO DE BULTO"].map(map_teu).astype("float64")
+df["TEU"] = df["CANTIDAD DE BULTO"].astype("float64") * df["TEU_factor"]
 
-df['PESO BRUTO POR CONTENEDOR'] = df['PESO BRUTO TOTAL'] / df['CANTIDAD DE BULTO']
-df['ITEMS POR CONTENEDOR'] = df['ITEMS TOTALES'] / df['CANTIDAD DE BULTO']
-
-df['TOTAL_TEU_REFRIGERADOS'] = (
-    df['CONTENEDOR REFRIGERADO 20'] + 2 *df['CONTENEDOR REFRIGERADO 40']
-)
+df.drop(columns=['US$ FOB', 'US$ FLETE', 'US$ SEGURO', 'US$ CIF', 'NUM DE ITEM', 'CANTIDAD', 'UNIDAD','TEU_factor'], inplace=True)
 
 
 
+df['FOB_per_TEU'] = df['FOB TOTAL'] / df['TEU']
+df['FLETE_per_TEU'] = df['FLETE TOTAL'] / df['TEU']
+df['SEGURO_per_TEU'] = df['SEGURO TOTAL'] / df['TEU']
+
+df['PESO BRUTO PER TEU'] = df['PESO BRUTO TOTAL'] / df['TEU']
+df['ITEMS PER TEU'] = df['ITEMS TOTALES'] / df['TEU']
+
+grouped_coasts = {
+    'GALVESTON': 'NAE',
+    'OTROS PTOS VENEZUELA': 'SAE',
+    'PUERTO ANGAMOS': 'SAW',
+    'SAN  ANTONIO': 'SAW',
+    'OTROS PTOS.INGLATERR': 'NE',
+    'OTROS PTOS.AMERICA': 'NAE',
+    'LISBOA': 'SE',
+    'ZEEBRUGGE': 'NE',
+    'NAPOLES': 'SE',
+    'DAIREN': 'FE',
+    'SALVADOR': 'SAE',
+    'CHARLESTON': 'NAE',
+    'KEELUNG': 'FE',
+    'OTROS PTOS. CHILENOS': 'SAW',
+    'OTROS PTOS.DE ITALIA': 'SE',
+    'NEW HAVEN': 'NAE',
+    'OTROS PTOS. COLOMBIA': 'SAW',
+    'HOUSTON': 'NAE',
+    'OTROS PTOS. DE PERU': 'SAW',
+    'SALERNO': 'SE',
+    'OTROS PTOS.EUROPA': 'NE',
+    'CUTTER COVE': 'NAW',
+    'PALENA CARRENLEUFU': 'SAW',
+    'SEATTLE': 'NAW',
+    'LOS ANGELES': 'NAW',
+    'RIJEKA': 'SE',
+    'CUXHAVEN': 'NE',
+    'OTROS PTOS.HOLANDA': 'NE',
+    'AMSTERDAM': 'NE',
+    'TORONTO': 'NAE',
+    'PORT ARTHUR': 'NAE',
+    'OTROS PTOS.TAIWAN': 'FE',
+    'LIECHTENSTEIN': 'NE',
+    'OTROS PTOS.BRASIL': 'SAE',
+    'MENDOZA': 'SAE',
+    'OTROS PTOS. ECUADOR': 'SAW',
+    'BALTIMORE': 'NAE',
+    'CORONEL': 'SAW',
+    'AEROPUERTO COM. A. MERINO B.': 'SAW',
+    'OTROS PTOS PORTUGAL': 'SE',
+    'OTROS PTOS.PORTUGAL': 'SE',
+    'PORTLAND': 'NAW',
+    'KOTKA': 'NE',
+    'OULO': 'NE',
+    'OSLO': 'NE',
+    'OTROS PTO.NORUEGA': 'NE',
+    'HELSINKI': 'NE',
+    'SANTOS': 'SAE',
+    'BILBAO': 'SE',
+    'GOTEMBURGO': 'NE',
+    'FRANKFURT': 'NE',
+    'OLDENBURG': 'NE',
+    'LE HAVRE': 'NE',
+    'YOKOHAMA': 'FE',
+    'CRISTOBAL': 'NAE',
+    'COSTA DEL PACIFICO': 'NAW',
+    'GNL MEJILLONES': 'SAW',
+    'CURACAO': 'NAE',
+    'OTROS PTOS. CHILENOS': 'SAW',
+    'SAN FRANCISCO': 'NAW',
+    'ROSTOCK': 'NE',
+    'BARRANQUILLA': 'NAE',
+    'CIUDAD DEL CABO': 'AF',
+    'HELSIMBORG': 'NE',
+    'AUGUSTA': 'SE',
+    'OTROS PTOS. PANAMA': 'NAE',
+    'OTROS PTOS.ALEMANIA': 'NE',
+    'OTROS PTOS BULGARIA': 'SE',
+    'OTROS PTOS.SUECIA': 'NE',
+    'PARANAGUA': 'SAE',
+    'OSAKA': 'FE',
+    'OTROS PTO.SUD AFRIC': 'AF',
+    'VANCOUVER': 'NAW',
+    'SALINAS': 'SAW',
+    'COLUMBRES': 'SE',
+    'NEW YORK': 'NAE',
+    'PUERTOS DEL GOLFO': 'NAE',
+    'COSTA DE ATLANTICO': 'NAE',
+    'TAMPA': 'NAE',
+    'QUEBEC': 'NAE',
+    'OTROS PUERTOS CANADA': 'NAE',
+    'AMBERES': 'NE',
+    'LIVERPOOL': 'NE',
+    'SAVONA': 'SE',
+    'OTROS PTOS.ESPANA': 'SE',
+    'LIORNA,LIVORNO': 'SE',
+    'OTROS PTO.OCEANIA': 'OC',
+    'NORFOLK': 'NAE',
+    'VALENCIA': 'SE',
+    'COLON': 'NAE',
+    'OTROS PTOS.FRANCIA': 'SE',
+    'OTROS PTOS.ARGENTINA': 'SAE',
+    'VERACRUZ': 'NAE',
+    'BREMEN': 'NE',
+    'OTROS PTOS PORTUGAL': 'SE',
+    'OTROS PTOS.ESPANA': 'SE',
+    'AALBORG': 'NE',
+    'OTROS PTOS.JAPONESES': 'FE',
+    'BUENAVENTURA': 'SAW',
+    'OTROS PTO.BANGLADESH': 'ME',
+    'OTROS PTOS. ECUADOR ': 'SAW',
+    'OTROS PTOS.TAIWAN ': 'FE',
+    'COATZACOALES': 'NAE',
+    'PANAMA': 'NAW',
+    'OTROS PTOS.DE COREA': 'FE',
+    'OTROS PTOS.ARGENTINA ': 'SAE',
+    'IQUIQUE': 'SAW',
+    'RIO DE JANEIRO': 'SAE',
+    'RIO GRANDE DEL SUR': 'SAE',
+    'BUENOS AIRES': 'SAE',
+    'OTROS PTOS.URUGUAY': 'SAE',
+    'MONTEVIDEO': 'SAE',
+    'BAHIA BLANCA': 'SAE',
+    'SAO PAULO': 'SAE',
+    'ARICA': 'SAW',
+    'MEJILLONES': 'SAW',
+    'PATILLOS': 'SAW',
+    'CALDERA': 'SAW',
+    'SAN VICENTE': 'SAW',
+    'LIRQUEN': 'SAW',
+    'TALCAHUANO': 'SAW',
+    'VALPARAISO': 'SAW',
+    'SAN  ANTONIO': 'SAW',
+    'GUAYACAN': 'SAW',
+    'OTROS PTOS. DE PERU': 'SAW',
+    'CALLAO': 'SAW',
+    'ILO': 'SAW',
+    'GUAYAQUIL': 'SAW',
+    'OTROS PTOS. ECUADOR': 'SAW',
+    'OTROS PTOS.BRASIL': 'SAE',
+    'SALVADOR': 'SAE',
+    'SANTOS': 'SAE',
+    'PARANAGUA': 'SAE',
+    'RIO GRANDE DEL SUR': 'SAE',
+    'AMSTERDAM': 'NE',
+    'ROTTERDAM': 'NE',
+    'HAMBURGO': 'NE',
+    'LONDRES': 'NE',
+    'LE HAVRE ': 'NE',
+    'LA PALLICE': 'NE',
+    'ZEEBRUGGE ': 'NE',
+    'BREMEN ': 'NE',
+    'CUXHAVEN ': 'NE',
+    'ROSTOCK ': 'NE',
+    'FRANKFURT ': 'NE',
+    'NUREMBERG': 'NE',
+    'OLDENBURG ': 'NE',
+    'OTROS PTOS.ALEMANIA ': 'NE',
+    'OTROS PTOS.HOLANDA ': 'NE',
+    'OTROS PTO.BELGICA': 'NE',
+    'OTROS PTOS.INGLATERR ': 'NE',
+    'COPENHAGEN': 'NE',
+    'AARHUS': 'NE',
+    'AALBORG ': 'NE',
+    'GOTEMBURGO ': 'NE',
+    'HELSIMBORG ': 'NE',
+    'OSLO ': 'NE',
+    'STAVANGER': 'NE',
+    'HELSINKI ': 'NE',
+    'KOTKA ': 'NE',
+    'OULO ': 'NE',
+    'OTROS PTO.NORUEGA ': 'NE',
+    'OTROS  PTO.DINAMARCA': 'NE',
+    'OTROS PTOS.SUECIA ': 'NE',
+    'OTROS PTO.FINLANDIA': 'NE',
+    'GENOVA': 'SE',
+    'VALENCIA ': 'SE',
+    'BARCELONA': 'SE',
+    'BILBAO ': 'SE',
+    'ALGECIRAS': 'SE',
+    'CADIZ': 'SE',
+    'SEVILLA': 'SE',
+    'LISBOA ': 'SE',
+    'SETUBAL': 'SE',
+    'MARSELLA': 'SE',
+    'LIORNA,LIVORNO ': 'SE',
+    'SAVONA ': 'SE',
+    'AUGUSTA ': 'SE',
+    'NAPOLES ': 'SE',
+    'SALERNO ': 'SE',
+    'CONSTANZA': 'SE',
+    'VARNA': 'SE',
+    'RIJEKA ': 'SE',
+    'OTROS PTOS.PORTUGAL ': 'SE',
+    'OTROS PTOS.ESPANA ': 'SE',
+    'OTROS PTOS.DE ITALIA ': 'SE',
+    'OTROS PTOS.FRANCIA ': 'SE',
+    'OTROS PTOS BULGARIA ': 'SE',
+    'OTROS PTO.DE RUMANIA': 'SE',
+    'HONG KONG': 'FE',
+    'SHANGAI': 'FE',
+    'OTROS PTOS.DE CHINA': 'FE',
+    'DAIREN ': 'FE',
+    'KAOHSIUNG': 'FE',
+    'KEELUNG ': 'FE',
+    'OTROS PTOS.TAIWAN  ': 'FE',
+    'BUSAN CY (PUSAN)': 'FE',
+    'OTROS PTOS.DE COREA ': 'FE',
+    'YOKOHAMA ': 'FE',
+    'KOBE': 'FE',
+    'OSAKA ': 'FE',
+    'NAGOYA': 'FE',
+    'SHIMIZUI': 'FE',
+    'FUKUYAMA': 'FE',
+    'MOJI': 'FE',
+    'OTROS PTOS.JAPONESES ': 'FE',
+    'MANILA': 'FE',
+    'OTROS PTOS.FILIPINAS': 'FE',
+    'OTROS PTO.SINGAPURE': 'FE',
+    'OTROS PTO.ASIATICOS': 'FE',
+    'OTROS PTO.IRAN NO ES': 'ME',
+    'OTROS PTO.INDIA NO E': 'FE',
+    'CALCUTA': 'FE',
+    'OTROS PTO.BANGLADESH ': 'FE',
+    'DURBAM': 'AF',
+    'CIUDAD DEL CABO ': 'AF',
+    'OTROS PTO.DE AFRICA': 'AF',
+    'OTROS PTO.SUD AFRIC ': 'AF',
+    'SIDNEY': 'OC',
+    'ADELAIDA': 'OC',
+    'PREMANTLE': 'OC',
+    'OTROS PTO.AUSTRALIA': 'OC',
+    'OTROS PTO.OCEANIA ': 'OC',
+    'LONG BEACH': 'NAW',
+    'OAKLAND': 'NAW',
+    'SEATTLE ': 'NAW',
+    'SAN DIEGO': 'NAW',
+    'SAN FRANCISCO ': 'NAW',
+    'PORTLAND ': 'NAW',
+    'VANCOUVER ': 'NAW',
+    'BALBOA': 'NAW',
+    'MANZANILLO': 'NAW',
+    'MAZATLAN': 'NAW',
+    'GUAYMAS': 'NAW',
+    'COSTA DEL PACIFICO ': 'NAW',
+    'OTROS PUERTOS MEXICO': 'NAW',
+    'NEW YORK ': 'NAE',
+    'MIAMI': 'NAE',
+    'PHILADELPHIA': 'NAE',
+    'EVERGLADES': 'NAE',
+    'CHARLESTON ': 'NAE',
+    'SAVANAH': 'NAE',
+    'HOUSTON ': 'NAE',
+    'NORFOLK ': 'NAE',
+    'BALTIMORE ': 'NAE',
+    'SAINT JOHN': 'NAE',
+    'MOBILE': 'NAE',
+    'NEW ORLEANS': 'NAE',
+    'JACKSONVILLE': 'NAE',
+    'TAMPA ': 'NAE',
+    'PORT ARTHUR ': 'NAE',
+    'GALVESTON ': 'NAE',
+    'BOSTON': 'NAE',
+    'HALIFAX': 'NAE',
+    'MONTREAL': 'NAE',
+    'QUEBEC ': 'NAE',
+    'TORONTO ': 'NAE',
+    'PITTSBURGH': 'NAE',
+    'MILWAUKEE': 'NAE',
+    'NEW HAVEN ': 'NAE',
+    'COLON ': 'NAE',
+    'CRISTOBAL ': 'NAE',
+    'CURACAO ': 'NAE',
+    'PUERTOS DEL GOLFO ': 'NAE',
+    'GOLFO DE MEXICO': 'NAE',
+    'COATZACOALES ': 'NAE',
+    'VERACRUZ ': 'NAE',
+    'TAMPICO ': 'NAE',
+    'OTROS PUERTOS CANADA ': 'NAE',
+    'OTROS PUERTOS EE.UU.': 'NAE',
+    'EEUU': 'NAE',
+    'BARRANQUILLA ': 'NAE',
+    'LA GUAYRA': 'NAE',
+    'OTROS ANT.HOLANDESA': 'NAE',
+    'PANAMA ': 'NAW',
+    'COSTA DE ATLANTICO ': 'NAE',
+    'OTROS PTOS. COLOMBIA ': 'SAW',
+    'AEROPUERTO COM. A. MERINO B. ': 'SAW',
+    'CORONEL ': 'SAW',
+    'COLUMBRES ': 'SE',
+    '-': 'NAE',
+    'LIECHTENSTEIN ': 'NE',
+    'CUTTER COVE ': 'NAW',
+    'TERR. ANTARTICO CHILE': 'SAW',
+    'OTROS PTO.DE RUMANIA ': 'SE',
+    'OTROS PTO.FINLANDIA ': 'NE',
+    'OTROS  PTO.DINAMARCA ': 'NE',
+    'OTROS PTOS BULGARIA  ': 'SE',
+    'OTROS PTOS.DE CHINA ': 'FE',
+    'HONG KONG ': 'FE',
+    'JURELES': 'NAW',
+    'TAMPICO': 'NAE',
+    'ANTOFAGASTA': 'SAW',
+    'URUGUAY': 'SAE',
+    'ZONA FRANCA PUNTA ARENAS': 'SAW',
+    'SAN PEDRO DE ATACAMA': 'SAW',
+    'ZONA FRANCA IQUIQUE': 'SAW',
+    'OLLAGUE': 'SAW',
+    'POSEIDON': 'SAW',
+    'PASO GUANACO SONSO': 'SAW',
+    'SOCOMPA': 'SAW',
+    'CABO NEGRO': 'SAW',
+}
+df['coast'] = df['PUERTO DE EMBARQUE'].map(grouped_coasts)
 
 # Calcular frecuencias y porcentajes
-frecuencias = df['PUERTO DE EMBARQUE'].value_counts(normalize=True) * 100
-menos_frecuentes = frecuencias[frecuencias < 10].index
+frecuencias = df['PUERTO DE EMBARQUE'].value_counts(normalize=True)
+menos_frecuentes = frecuencias[frecuencias < 0.050].index
 df['PUERTO DE EMBARQUE'] = df['PUERTO DE EMBARQUE'].replace(menos_frecuentes, 'other_ports')
 
 # Calcular frecuencias y porcentajes
-frecuencias = df['PUERTO DE DESEMBARQUE'].value_counts(normalize=True) * 100
+frecuencias = df['PUERTO DE DESEMBARQUE'].value_counts(normalize=True)
 # Identificar los que representan menos del 0.5%
-menos_frecuentes = frecuencias[frecuencias < 10].index
+menos_frecuentes = frecuencias[frecuencias < 0.010].index
 # Reemplazar en el DataFrame
 df['PUERTO DE DESEMBARQUE'] = df['PUERTO DE DESEMBARQUE'].replace(menos_frecuentes, 'other_ports')
 
 # Calcular frecuencias y porcentajes
-frecuencias = df['PAIS DE ORIGEN'].value_counts(normalize=True) * 100
-menos_frecuentes = frecuencias[frecuencias < 0.5].index
+
+df = df[df["PAIS DE ORIGEN"] != "ORIGEN O DESTINO NO PRECISADO"]
+frecuencias = df['PAIS DE ORIGEN'].value_counts(normalize=True)
+menos_frecuentes = frecuencias[frecuencias < 0.005].index
 df['PAIS DE ORIGEN'] = df['PAIS DE ORIGEN'].replace(menos_frecuentes, 'other_countries')
+
+frecuencias = df['CLAUSULA'].value_counts(normalize=True)
+menos_frecuentes = frecuencias[frecuencias < 0.01].index
+df['CLAUSULA'] = df['CLAUSULA'].replace(menos_frecuentes, 'OTRO')
+
+frecuencias = df['ADUANA'].value_counts(normalize=True)
+menos_frecuentes = frecuencias[frecuencias < 0.1].index
+df['ADUANA'] = df['ADUANA'].replace(menos_frecuentes, 'OTRA')
 
 
 
@@ -152,127 +526,85 @@ def reemplazar_nombre_compania(nombre):
     return nombre
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].astype(str).apply(reemplazar_nombre_compania)
 # Calcular frecuencias y porcentajes
-frecuencias = df['COMPANIA DE TRANSPORTE'].value_counts(normalize=True) * 100
+frecuencias = df['COMPANIA DE TRANSPORTE'].value_counts(normalize=True)
 # Identificar los que representan menos del 0.5%
-menos_frecuentes = frecuencias[frecuencias < 0.5].index
+menos_frecuentes = frecuencias[frecuencias < 0.005].index
 # create the other_countries category
-df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(menos_frecuentes, 'other_countries')
-df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace('NO EXISTE', 'other_countries')
+df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(menos_frecuentes, 'other_companies')
+df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace('NO EXISTE', 'other_companies')
 
 
 
+df = df.drop(columns=['NRO DE MANIFIESTO','CANTIDAD UNIDADES FISICAS','UNIDAD DE MEDIDA FISICA'])
 
 
 
+df = df[df["FLETE_per_TEU"] > 100]
+df = df[df["FLETE_per_TEU"] < 500000]
 
-# drop some columns
-df = df.drop(columns=['ADUANA','DIGITO VERIFICADOR RUT','PROBABLE IMPORTADOR','PRODUCTO', 'MARCA', 'VARIEDAD',
-                      'DESCRIPCION','VIA DE TRANSPORTE','DESCRIPCION ARANCELARIA','NUM DE ITEM',
-                      'FORMA PAGO','TIPO DE CARGA','TIPO DE OPERACION','PAIS COMPANIA DE TRANSPORTE','ALMACEN',
-                      'ZONA ECONOMICA','CLAVE ECONOMICA IMPORTADOR','ACUERDO COMERCIAL','EMISOR','ESTADO DE MERCANCIA',
-                      'NRO DOC. TRANSPORTE','FECHA DE MANIFIESTO','FECHA DE ALMACEN','FECHA DOC. TRANSPORTE',
-                      'NRO DE MANIFIESTO','IMPUESTO US$','IMPUESTO US$','IMPUESTO','TOTAL IVA'])
+df["FECHA"] = pd.to_datetime(df["FECHA DOC. TRANSPORTE"], format="%d%m%Y", errors="coerce")
 
+df["WEEK"] = df["FECHA"].dt.to_period("W").dt.start_time
 
-df = df.drop(columns=['CIF TOTAL','US$ CIF','US$ CIF UNIT','US$ FOB UNIT','CANTIDAD','US$ FOB','US$ FLETE','US$ SEGURO',
-                      'FECHA_DOC_TRANSPORTE','PAIS DE ADQUISICION','FOB TOTAL','FLETE TOTAL','SEGURO TOTAL',
-                      'day','month','year','PESO BRUTO TOTAL','UNIDAD','ITEMS TOTALES'])
-
-df.to_csv("processed_df.csv", index=False)
-
-
-
-# CONSTRUCT NEW DF WITH DAILY AGREGGATED DATA
-
-# create a df for the aggregated data by day
-daily_df = pd.DataFrame({'FECHA': df['FECHA'].dropna().sort_values().unique()})
-din_diario = df.groupby('FECHA')['NUMERO DE ACEPTACION'].nunique().reset_index()
-din_diario.rename(columns={'NUMERO DE ACEPTACION': 'DIN_UNICOS_DIARIOS'}, inplace=True)
-# Unir al DataFrame diario
-daily_df = pd.merge(daily_df, din_diario, on='FECHA', how='left')
-
-# UNIQUE COUNT OF IMPORTER COMPANY AND PARTIDA ARACELARIA
-rut_diario = df.groupby('FECHA')['RUT PROBABLE IMPORTADOR'].nunique().reset_index()
-rut_diario.rename(columns={'RUT PROBABLE IMPORTADOR': 'RUTS_UNICOS_DIARIOS'}, inplace=True)
-
-partida_diario = df.groupby('FECHA')['PARTIDA ARANCELARIA'].nunique().reset_index()
-partida_diario.rename(columns={'PARTIDA ARANCELARIA': 'PARTIDAS_UNICAS_DIARIAS'}, inplace=True)
-
-daily_df = daily_df.merge(rut_diario, on='FECHA', how='left')
-daily_df = daily_df.merge(partida_diario, on='FECHA', how='left')
+weekly_df = df.groupby("WEEK", as_index=False).agg({
+    'NUMERO DE ACEPTACION': 'nunique',
+    'FECHA': 'first',
+    'RUT PROBABLE IMPORTADOR': 'nunique',
+    'PARTIDA ARANCELARIA': 'nunique',
+    'PESO BRUTO TOTAL': 'mean',
+    'US$ CIF UNIT': 'mean',
+    'IMPUESTO US$': 'mean',
+    'CANTIDAD DE BULTO': 'mean',
+    'NRO DOC. TRANSPORTE': 'nunique',
+    'ITEMS TOTALES': 'mean',
+    'FOB TOTAL': 'mean',
+    'FLETE TOTAL': 'mean',
+    'SEGURO TOTAL': 'mean',
+    'CIF TOTAL': 'mean',
+    'TOTAL IVA': 'mean',
+    'US$ FOB UNIT': 'mean',
+    'DIFF FECHA DIN Y DOC TRANSPORTE': 'mean',
+    'TEU': 'mean',
+    'TEU':'min',
+    'TEU':'max',
+    'FOB_per_TEU': 'mean',
+    'FLETE_per_TEU': 'mean',
+    'SEGURO_per_TEU': 'mean',
+    'PESO BRUTO PER TEU': 'mean',
+    'ITEMS PER TEU': 'mean',
+    })
 
 
+def pivot_and_merge(main_df, series_df, group_col, value_col, agg_func='sum'):
+    """Helper to perform pivot-like aggregation and merge."""
+    pivot_df = series_df.groupby(['WEEK', group_col])[value_col].agg(agg_func).unstack(fill_value=0)
+
+    func_name = agg_func if isinstance(agg_func, str) else agg_func.__name__
+    prefix = f"{func_name.upper()}_{value_col}_"
+    pivot_df = pivot_df.add_prefix(prefix)  # Add prefix for clarity
+    return main_df.merge(pivot_df, on='WEEK', how='left')
 
 
-
-# TOTAL CONTAINER COUNT
-total_contenedores_diario = df.groupby('FECHA')['CANTIDAD DE BULTO'].sum().reset_index()
-total_contenedores_diario.rename(columns={'CANTIDAD DE BULTO': 'TOTAL_TEUS'}, inplace=True)
-daily_df = pd.merge(daily_df, total_contenedores_diario, on='FECHA', how='left')
-
-# total container refrigerados
-total_contenedores_diario_ref = df.groupby('FECHA')['TOTAL_TEU_REFRIGERADOS'].sum().reset_index()
-total_contenedores_diario_ref.rename(columns={'TOTAL_TEU_REFRIGERADOS': 'TOTAL_TEUS'}, inplace=True)
-daily_df = pd.merge(daily_df, total_contenedores_diario_ref, on='FECHA', how='left')
-
-
-
-
-cols = ['DIFF FECHA DIN Y DOC TRANSPORTE','FOB_POR_BULTO', 'SEGURO_POR_BULTO', 'FLETE_POR_BULTO',
-        'PESO BRUTO POR CONTENEDOR', 'ITEMS POR CONTENEDOR']
-agg_funcs = ['mean', 'min', 'max']
-
-for col in cols:
-    agg_df = df.groupby('FECHA')[col].agg(agg_funcs).reset_index()
-    agg_df.columns = ['FECHA'] + [f'{func.upper()}_{col}' for func in agg_funcs]
-    daily_df = pd.merge(daily_df, agg_df, how='left', on='FECHA')
+weekly_df = pivot_and_merge(weekly_df, df, 'ADUANA', 'TEU')
+weekly_df = pivot_and_merge(weekly_df, df, 'PAIS DE ORIGEN', 'TEU')
+weekly_df = pivot_and_merge(weekly_df, df, 'PAIS DE ORIGEN', 'FLETE_per_TEU', agg_func='mean')
+weekly_df = pivot_and_merge(weekly_df, df, 'PUERTO DE EMBARQUE', 'TEU')
+weekly_df = pivot_and_merge(weekly_df, df, 'PUERTO DE DESEMBARQUE', 'TEU')
+weekly_df = pivot_and_merge(weekly_df, df, 'COMPANIA DE TRANSPORTE', 'TEU')
+weekly_df = pivot_and_merge(weekly_df, df, 'COMPANIA DE TRANSPORTE', 'FLETE_per_TEU', agg_func='mean')
+weekly_df = pivot_and_merge(weekly_df, df, 'CLAUSULA', 'TEU')
+weekly_df = pivot_and_merge(weekly_df, df, 'TIPO DE BULTO', 'TEU')
+weekly_df = pivot_and_merge(weekly_df, df, 'coast', 'TEU')
+weekly_df = pivot_and_merge(weekly_df, df, 'coast', 'FLETE_per_TEU', agg_func='mean')
 
 
-
-# CLAUSULA count
-#todo I can group some categories in others
-clausula_container_count = df.groupby(['FECHA', 'CLAUSULA'])['CANTIDAD DE BULTO'].sum().reset_index()
-pivot_clausula_count = clausula_container_count.pivot(index='FECHA', columns='CLAUSULA', values='CANTIDAD DE BULTO').fillna(0).reset_index()
-daily_df = pd.merge(daily_df, pivot_clausula_count, how='left', on='FECHA')
-
-
-
-
-# containers per company count
-company_container_count = df.groupby(['FECHA', 'COMPANIA DE TRANSPORTE'])['CANTIDAD DE BULTO'].sum().reset_index()
-pivot_company_count = company_container_count.pivot(index='FECHA', columns='COMPANIA DE TRANSPORTE', values='CANTIDAD DE BULTO').fillna(0).reset_index()
-daily_df = pd.merge(daily_df, pivot_company_count, how='left', on='FECHA')
-
-# containers per container type count
-container_type_container_count = df.groupby(['FECHA', 'TIPO DE BULTO'])['CANTIDAD DE BULTO'].sum().reset_index()
-pivot_container_type_count = container_type_container_count.pivot(index='FECHA', columns='TIPO DE BULTO',
-                                                    values='CANTIDAD DE BULTO').fillna(0).reset_index()
-daily_df = pd.merge(daily_df, pivot_container_type_count, how='left', on='FECHA')
-
-
-# container per origin country
-container_country_count = df.groupby(['FECHA', 'PAIS DE ORIGEN'])['CANTIDAD DE BULTO'].sum().reset_index()
-pivot_country_count = container_country_count.pivot(index='FECHA', columns='PAIS DE ORIGEN',
-                                                                  values='CANTIDAD DE BULTO').fillna(0).reset_index()
-daily_df = pd.merge(daily_df, pivot_country_count, how='left', on='FECHA')
-
-
-del df
-gc.collect()
-
-# Agrupar por FECHA, PUERTO DE EMBARQUE y DESEMBARQUE, sumando CANTIDAD DE BULTO
-# containers_by_route = df.groupby(['FECHA', 'PUERTO DE EMBARQUE', 'PUERTO DE DESEMBARQUE'])['CANTIDAD DE BULTO'].sum().reset_index()
-# containers_by_route['RUTA'] = containers_by_route['PUERTO DE EMBARQUE'].str.lower().str.strip() + " - " + containers_by_route['PUERTO DE DESEMBARQUE'].str.lower().str.strip()
-# pivot_routes = containers_by_route.pivot_table(index='FECHA', columns='RUTA', values='CANTIDAD DE BULTO', fill_value=0).reset_index()
-# daily_df = pd.merge(daily_df, pivot_routes, on='FECHA', how='left')
-
-
+weekly_df['FECHA']
 
 
 #ADD MACRO DATA
 
 
-original_columns = set(daily_df.columns)
+original_columns = set(weekly_df.columns)
 
 folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\macrodata"
 
@@ -287,8 +619,6 @@ for filename in os.listdir(folder):
             df_macro[['Close', 'Volume']] = df_macro[['Close', 'Volume']].fillna(method='ffill').fillna(method='bfill')
             df_macro['Close_pct_change'] = df_macro['Close'].pct_change().fillna(0)
 
-            # df_macro.to_csv("test_macro.csv", index=False)
-
 
             if 'Close' in df_macro.columns and 'Volume' in df_macro.columns:
                 df_macro[['Close', 'Volume']] = df_macro[['Close', 'Volume']].fillna(method='ffill')
@@ -300,40 +630,30 @@ for filename in os.listdir(folder):
                         'Volume': f'{name}_volume',
                         'Close_pct_change': f'{name}_pct_change'
                     })
+                macro_filtered["WEEK"] = macro_filtered["FECHA"].dt.to_period("W").dt.start_time
+                weekly_macro_df = macro_filtered.groupby("WEEK", as_index=False).agg({
+                    'FECHA': 'first',
+                    f'{name}_price': 'first',
+                    f'{name}_volume': 'sum',
+                })
+
+                col = f"{name}_weekly_pct_change"
+                weekly_macro_df[col] = weekly_macro_df[f"{name}_price"].pct_change()
+                weekly_macro_df = weekly_macro_df.drop(columns=['FECHA'])
 
 
-                daily_df = pd.merge(daily_df, macro_filtered, how='left', on='FECHA')
+                weekly_df = pd.merge(weekly_df, weekly_macro_df, how='left', on='WEEK')
 
 
-new_columns = [col for col in daily_df.columns if col not in original_columns]
-daily_df[new_columns] = daily_df[new_columns].fillna(method='ffill').fillna(method='bfill')
-
-
-
-
-
-
-daily_df.to_csv("test_daily.csv", index=False)
+new_columns = [col for col in weekly_df.columns if col not in original_columns]
+weekly_df[new_columns] = weekly_df[new_columns].fillna(method='ffill').fillna(method='bfill')
 
 
 
 
 
-# numeric_df = daily_df.select_dtypes(include='number')
-#
-# # Compute correlation matrix
-# correlation_matrix = numeric_df.corr()
-#
-# import matplotlib.pyplot as plt
-# import seaborn as sns
-#
-# # Set up the plot
-# plt.figure(figsize=(14, 12))
-# sns.heatmap(correlation_matrix, cmap='coolwarm', annot=False, fmt=".2f", square=True)
-# plt.title("Correlation Matrix Heatmap", fontsize=16)
-# plt.tight_layout()
-# plt.show()
-#
-# (
-# # check grouped mean values
-# df.groupby('TIPO DE BULTO')[['PESO BRUTO TOTAL','FLETE TOTAL']].mean()
+
+weekly_df.to_csv("chile_data.csv", index=False)
+
+
+
