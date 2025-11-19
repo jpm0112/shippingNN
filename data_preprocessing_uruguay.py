@@ -413,10 +413,12 @@ for filename in os.listdir(folder):
                 weekly_macro_df = weekly_macro_df.drop(columns=['FECHA'])
 
                 daily_df = pd.merge(daily_df, weekly_macro_df, how='left', on='WEEK')
-                daily_df = pd.merge(daily_df, macro_filtered, how='left', on='FECHA')
 
 new_columns = [col for col in daily_df.columns if col not in original_columns]
 daily_df[new_columns] = daily_df[new_columns].fillna(method='ffill').fillna(method='bfill')
+
+daily_df = daily_df.drop(columns=['WEEK', 'ADUANA','INCOTERMS','PAIS_ORIGEN'])
+
 
 
 
