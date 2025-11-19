@@ -7,12 +7,12 @@ folder = r"C:\Users\jpm0112\OneDrive - Auburn University\Research - port shippin
 all_files = glob.glob(os.path.join(folder, "*.csv"))
 
 
-# for f in all_files:
-#     try:
-#         df_tmp = pd.read_csv(f, low_memory=False)
-#         print(f"{os.path.basename(f)} → {len(df_tmp.columns)} columns")
-#     except Exception as e:
-#         print(f"ERROR reading {os.path.basename(f)} → {e}")
+for f in all_files:
+    try:
+        df_tmp = pd.read_csv(f, low_memory=False)
+        print(f"{os.path.basename(f)} → {len(df_tmp.columns)} columns")
+    except Exception as e:
+        print(f"ERROR reading {os.path.basename(f)} → {e}")
 
 
 # df_list = [pd.read_csv(f) for f in all_files]
