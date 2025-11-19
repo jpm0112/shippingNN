@@ -53,7 +53,7 @@ ax = AxClient()
 ax.create_experiment(
     name="transformer_experiment",
     parameters=[
-        {"name": "window_size", "type": "range", "bounds": [42, 43], "value_type": "int"},
+        {"name": "window_size", "type": "choice", "values": [8,12,24], "value_type": "int"},
         {"name": "d_model", "type": "choice", "values": [256, 512, 1024]},
         {"name": "n_head", "type": "choice", "values": [8, 16,32]},
         {"name": "num_layers", "type": "range", "bounds": [1, 10], "value_type": "int"},
