@@ -77,6 +77,8 @@ df = pd.read_csv("chile_data.csv")
 
 df = df[df["FECHA"] >= "2018-01-01"].copy()
 
+df = df[df["FECHA"] < "2025-01-01"].copy()
+
 df = df.drop(columns=["MEAN_FLETE_per_TEU_AF", "MEAN_FLETE_per_TEU_ME",'MEAN_FLETE_per_TEU_OC'])
 
 df = df.drop(columns=['WEEK'])
