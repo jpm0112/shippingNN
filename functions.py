@@ -428,7 +428,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
     real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
 
-    return real, preds
+    return real, preds, [model, X_test]
 
 
 def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed):
@@ -664,3 +664,37 @@ def run_dnn(df, target_col, window_size, test_size, batch_size, epoch_number, lr
     real = np.array(y_test)
 
     return real, preds
+
+
+def get_attention_maps(model, sample):
+    """
+    sample: tensor of shape [B, T, input_size]
+    returns: list of attn_maps, one per layer, each [B, n_heads, T, T]
+    """
+    attn_maps = []
+
+    # same prep as in forward()
+    x = model.input_linear(sample)
+    x = x + model.positional_encoding[:, :x.size(1), :]
+
+    # manually go through encoder layers and capture attention
+    for layer in model.transformer.layers:
+        # self-attention with need_weights=True
+        attn_output, attn_weights = layer.self_attn(
+            x, x, x,
+            attn_mask=None,
+            key_padding_mask=None,
+            need_weights=True,
+            average_attn_weights=False,
+        )
+        attn_maps.append(attn_weights.detach().cpu())  # [B, n_heads, T, T]
+
+        # rest of TransformerEncoderLayer.forward (PyTorch)
+        x = x + layer.dropout1(attn_output)
+        x = layer.norm1(x)
+
+        ff = layer.linear2(layer.dropout(layer.activation(layer.linear1(x))))
+        x = x + layer.dropout2(ff)
+        x = layer.norm2(x)
+
+    return attn_maps
