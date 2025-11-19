@@ -3,11 +3,61 @@ import glob
 import os
 import gc
 
-folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\container_data"
+folder = r"C:\Users\jpm0112\OneDrive - Auburn University\Research - port shipping cost\dataset\container_data"
 all_files = glob.glob(os.path.join(folder, "*.csv"))
 
-df_list = [pd.read_csv(f) for f in all_files]
+
+# for f in all_files:
+#     try:
+#         df_tmp = pd.read_csv(f, low_memory=False)
+#         print(f"{os.path.basename(f)} → {len(df_tmp.columns)} columns")
+#     except Exception as e:
+#         print(f"ERROR reading {os.path.basename(f)} → {e}")
+
+
+# df_list = [pd.read_csv(f) for f in all_files]
+# df = pd.concat(df_list, ignore_index=True)
+
+
+
+expected_cols = [
+    'DIA', 'MES', 'ANO', 'ADUANA', 'NUMERO DE ACEPTACION',
+    'RUT PROBABLE IMPORTADOR', 'DIGITO VERIFICADOR RUT',
+    'PROBABLE IMPORTADOR', 'PARTIDA ARANCELARIA', 'PRODUCTO', 'MARCA',
+    'VARIEDAD', 'DESCRIPCION', 'PAIS DE ORIGEN', 'PAIS DE ADQUISICION',
+    'VIA DE TRANSPORTE', 'FORMA PAGO', 'PUERTO DE EMBARQUE',
+    'PUERTO DE DESEMBARQUE', 'COMPANIA DE TRANSPORTE', 'TIPO DE CARGA',
+    'TIPO DE BULTO', 'PESO BRUTO TOTAL', 'CLAUSULA', 'IMPUESTO', 'CANTIDAD',
+    'UNIDAD', 'US$ FOB', 'US$ FLETE', 'US$ SEGURO', 'US$ CIF',
+    'US$ CIF UNIT', 'TIPO DE OPERACION', 'DESCRIPCION ARANCELARIA',
+    'NUM DE ITEM', 'PAIS COMPANIA DE TRANSPORTE', 'IMPUESTO US$',
+    'CANTIDAD DE BULTO', 'ZONA ECONOMICA', 'CLAVE ECONOMICA IMPORTADOR',
+    'ALMACEN', 'FECHA DE ALMACEN', 'NRO DE MANIFIESTO',
+    'FECHA DE MANIFIESTO', 'NRO DOC. TRANSPORTE', 'FECHA DOC. TRANSPORTE',
+    'ITEMS TOTALES', 'FOB TOTAL', 'FLETE TOTAL', 'SEGURO TOTAL',
+    'CIF TOTAL', 'TOTAL IVA', 'US$ FOB UNIT', 'ACUERDO COMERCIAL',
+    'CANTIDAD UNIDADES FISICAS', 'UNIDAD DE MEDIDA FISICA',
+    'ESTADO DE MERCANCIA', 'EMISOR'
+]
+
+df_list = []
+
+for f in all_files:
+    tmp = pd.read_csv(f, header=None)  # ignore header entirely
+
+    if tmp.shape[1] != 58:
+        print(f"⚠️ File {os.path.basename(f)} has {tmp.shape[1]} columns (expected 58)")
+
+    tmp = tmp.iloc[:, :58]            # force 58 columns
+    tmp.columns = expected_cols       # assign your names
+    df_list.append(tmp)
+
 df = pd.concat(df_list, ignore_index=True)
+
+
+
+print(len(df.columns))
+print(sorted(df.columns))
 
 
 df.columns = [
@@ -124,7 +174,17 @@ df["TEU"] = df["CANTIDAD DE BULTO"].astype("float64") * df["TEU_factor"]
 
 df.drop(columns=['US$ FOB', 'US$ FLETE', 'US$ SEGURO', 'US$ CIF', 'NUM DE ITEM', 'CANTIDAD', 'UNIDAD','TEU_factor'], inplace=True)
 
+num_cols = [
+    'FOB TOTAL', 'FLETE TOTAL', 'SEGURO TOTAL', 'CIF TOTAL',
+    'PESO BRUTO TOTAL', 'ITEMS TOTALES',  
+     'US$ CIF UNIT', 'IMPUESTO US$',
+    'CANTIDAD DE BULTO'
+]
 
+# if there are thousand separators or weird chars, strip them first
+df[num_cols] = df[num_cols].replace({',': '', ' ': ''}, regex=True)
+
+df[num_cols] = df[num_cols].apply(pd.to_numeric, errors='coerce')
 
 df['FOB_per_TEU'] = df['FOB TOTAL'] / df['TEU']
 df['FLETE_per_TEU'] = df['FLETE TOTAL'] / df['TEU']
@@ -546,6 +606,39 @@ df["FECHA"] = pd.to_datetime(df["FECHA DOC. TRANSPORTE"], format="%d%m%Y", error
 
 df["WEEK"] = df["FECHA"].dt.to_period("W").dt.start_time
 
+
+mean_cols = [
+    'PESO BRUTO TOTAL',
+    'US$ CIF UNIT',
+    'IMPUESTO US$',
+    'CANTIDAD DE BULTO',
+    'ITEMS TOTALES',
+    'FOB TOTAL',
+    'FLETE TOTAL',
+    'SEGURO TOTAL',
+    'CIF TOTAL',
+    'TOTAL IVA',
+    'US$ FOB UNIT',
+    'DIFF FECHA DIN Y DOC TRANSPORTE',
+    'TEU',
+    'FOB_per_TEU',
+    'FLETE_per_TEU',
+    'SEGURO_per_TEU',
+    'PESO BRUTO PER TEU',
+    'ITEMS PER TEU',
+]
+
+# keep only those that really exist (defensive)
+mean_cols = [c for c in mean_cols if c in df.columns]
+
+df[mean_cols] = (
+    df[mean_cols]
+    .replace({',': '', ' ': ''}, regex=True)  # strip commas/spaces if any
+    .apply(pd.to_numeric, errors='coerce')
+)
+
+
+
 weekly_df = df.groupby("WEEK", as_index=False).agg({
     'NUMERO DE ACEPTACION': 'nunique',
     'FECHA': 'first',
@@ -604,7 +697,7 @@ weekly_df = pivot_and_merge(weekly_df, df, 'coast', 'FLETE_per_TEU', agg_func='m
 
 original_columns = set(weekly_df.columns)
 
-folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\macrodata"
+folder = r"C:\Users\jpm0112\OneDrive - Auburn University\Research - port shipping cost\dataset\macrodata"
 
 for filename in os.listdir(folder):
     if filename.endswith(".csv"):
