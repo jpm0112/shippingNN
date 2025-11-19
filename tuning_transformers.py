@@ -18,11 +18,10 @@ test_size = 24
 target_col = "FE"
 metric = "mape"  # objective to minimize
 minimize = True
-country = 'uruguay'
-df = pd.read_csv("weekly_uruguay_data.csv")
+country = 'chile'
+df = pd.read_csv("weekly_chile_data.csv")
 
 # for uruguay data
-df.rename(columns={"week": "FECHA"}, inplace=True)
 df["FECHA"] = pd.to_datetime(df["FECHA"])
 
 
@@ -58,7 +57,7 @@ ax.create_experiment(
         {"name": "d_model", "type": "choice", "values": [256, 512, 1024]},
         {"name": "n_head", "type": "choice", "values": [8, 16,32]},
         {"name": "num_layers", "type": "range", "bounds": [1, 10], "value_type": "int"},
-        {"name": "epoch_number", "type": "range", "bounds": [300,2000], "value_type": "int"},
+        {"name": "epoch_number", "type": "range", "bounds": [300,1000], "value_type": "int"},
         {"name": "batch_size", "type": "choice", "values": [16, 32, 64]},
         {"name": "lr", "type": "range", "bounds": [1e-5, 1e-2], "log_scale": True},
         # {"name": "optimizer", "type": "choice", "values": ['adam', "sgd", "adamw", 'Adagrad']},
