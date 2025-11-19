@@ -6,7 +6,7 @@ import gc
 folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\container_data"
 all_files = glob.glob(os.path.join(folder, "*.csv"))
 
-df_list = [pd.read_csv(f) for f in all_files[0:3]]
+df_list = [pd.read_csv(f) for f in all_files]
 df = pd.concat(df_list, ignore_index=True)
 
 
@@ -597,8 +597,6 @@ weekly_df = pivot_and_merge(weekly_df, df, 'TIPO DE BULTO', 'TEU')
 weekly_df = pivot_and_merge(weekly_df, df, 'coast', 'TEU')
 weekly_df = pivot_and_merge(weekly_df, df, 'coast', 'FLETE_per_TEU', agg_func='mean')
 
-
-weekly_df['FECHA']
 
 
 #ADD MACRO DATA
