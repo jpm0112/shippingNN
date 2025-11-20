@@ -55,7 +55,7 @@ ax.create_experiment(
     parameters=[
         {"name": "window_size", "type": "choice", "values": [8,12,24], "value_type": "int"},
         {"name": "d_model", "type": "choice", "values": [256, 512, 1024]},
-        {"name": "n_head", "type": "choice", "values": [8, 16,32]},
+        {"name": "n_head", "type": "choice", "values": [4,8,16,32]},
         {"name": "num_layers", "type": "range", "bounds": [1, 10], "value_type": "int"},
         {"name": "epoch_number", "type": "range", "bounds": [300,1000], "value_type": "int"},
         {"name": "batch_size", "type": "choice", "values": [16, 32, 64]},
@@ -81,7 +81,7 @@ for _ in range(iterations):
 
     try:
         # === Train/eval ===
-        y_true, y_pred = run_transformer(
+        y_true, y_pred, list = run_transformer(
             df=tmp,
             target_col=target_col,
             window_size=int(params["window_size"]),
