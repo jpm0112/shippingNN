@@ -1,6 +1,9 @@
 # bayesopt_transformer_ax.py
 import warnings
 
+from lightning import seed_everything
+import numpy as np
+
 warnings.filterwarnings("ignore")
 
 from ax.service.ax_client import AxClient
@@ -21,16 +24,8 @@ minimize = True
 country = 'chile'
 df = pd.read_csv("weekly_chile_data.csv")
 
-# for uruguay data
-df["FECHA"] = pd.to_datetime(df["FECHA"])
-
-
-# df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
-df = df.sort_values("FECHA").rename(columns=lambda x: x.replace(".", "_"))
-
 tmp = df.copy().sort_values("FECHA")
-tmp["series"] = "kz"  # harmless for baseline
-tmp["time_idx"] = tmp.groupby("series").cumcount()
+
 if deleted_sample > 0:
     tmp = tmp.iloc[:-deleted_sample]
 
@@ -53,11 +48,11 @@ ax = AxClient()
 ax.create_experiment(
     name="transformer_experiment",
     parameters=[
-        {"name": "window_size", "type": "choice", "values": [8,12,24], "value_type": "int"},
+        {"name": "window_size", "type": "choice", "values": [24,48], "value_type": "int"},
         {"name": "d_model", "type": "choice", "values": [256, 512, 1024]},
         {"name": "n_head", "type": "choice", "values": [4,8,16,32]},
         {"name": "num_layers", "type": "range", "bounds": [1, 10], "value_type": "int"},
-        {"name": "epoch_number", "type": "range", "bounds": [300,1000], "value_type": "int"},
+        {"name": "epoch_number", "type": "range", "bounds": [300,800], "value_type": "int"},
         {"name": "batch_size", "type": "choice", "values": [16, 32, 64]},
         {"name": "lr", "type": "range", "bounds": [1e-5, 1e-2], "log_scale": True},
         # {"name": "optimizer", "type": "choice", "values": ['adam', "sgd", "adamw", 'Adagrad']},
@@ -69,7 +64,9 @@ ax.create_experiment(
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 iterations = 500
 
-for _ in range(iterations):
+for i in range(iterations):
+    print("=== Trial %d ===" % (i + 1))
+    print("________________________________")
     params, trial_index = ax.get_next_trial()
     started_at = datetime.now()
 
@@ -80,6 +77,11 @@ for _ in range(iterations):
         continue
 
     try:
+        seed = 1048596
+        seed_everything(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
         # === Train/eval ===
         y_true, y_pred, list = run_transformer(
             df=tmp,
@@ -97,6 +99,14 @@ for _ in range(iterations):
             #optimizer=params["optimizer"],
             # weight_decay=float(params["weight_decay"]),
         )
+        print(f"Trial {trial_index} completed.")
+        print("window_size ", params["window_size"])
+        print("batch_size ", params["batch_size"])
+        print("d_model ", d_model)
+        print("n_head ", n_head)
+        print("num_layers ", params["num_layers"])
+        print("epoch_number ", params["epoch_number"])
+        print("lr ", params["lr"])
 
         mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
         runtime_s = (datetime.now() - started_at).total_seconds()
