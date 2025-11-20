@@ -135,19 +135,31 @@ for col in df.columns:
     if col.startswith("MEAN_FLETE"):
         df = replace_zeros_with_neighbors_mean(df, col)
 
-
-
-
-df = df[df["FECHA"] >= "2018-01-01"].copy()
-df = df[df["FECHA"] < "2025-01-01"].copy()
-
 fixed_cols = df.columns[df.nunique() == 1].tolist()
 print(fixed_cols)
+df = df.drop(columns=fixed_cols)
+
+df["series"] = "chile"  # harmless for baseline
+df["time_idx"] = df.groupby("series").cumcount()
+df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
+df["dow"] = df["FECHA"].dt.weekday.astype(int)
+df["month"] = df["FECHA"].dt.month.astype(int)
+
+
+df = df[df["FECHA"] >= "2024-01-01"].copy()
+df = df[df["FECHA"] < "2025-01-01"].copy()
+
+df.columns = df.columns.str.replace(".", "_", regex=False)
 
 df.to_csv("weekly_chile_data.csv", index=False)
 
-
-
+plt.figure(figsize=(10, 4))
+plt.plot(df["NUMERO DE ACEPTACION"])
+plt.title("Número de Aceptación")
+plt.xlabel("Index")
+plt.ylabel("Valor")
+plt.tight_layout()
+plt.show()
 
 
 

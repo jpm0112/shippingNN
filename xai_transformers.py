@@ -13,40 +13,31 @@ import os
 
 
 
-torch.set_float32_matmul_precision("high")
+# torch.set_float32_matmul_precision("high")
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 # Configurar dispositivo
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load data
 df = pd.read_csv("weekly_chile_data.csv")
-df["FECHA"] = pd.to_datetime(df["FECHA"])
-df = df.sort_values("FECHA")
-df = df.rename(columns=lambda x: x.replace(".", "_"))
+tmp = df.copy().sort_values("FECHA")
 
 # --- single model parameters ---
 target_col = "FE"
-window_size = 48
+window_size = 24
 test_size = 24
-d_model = 128 * 2
-n_head = 4 * 2
-num_layers = 2  # lstm layers
-epoch_number = 20
-lr = 1e-4
-batch_size = 32
-dropout = 0.2
-grad_clip = 0.2
+d_model = 512
+n_head = 4
+num_layers = 9  # lstm layers
+epoch_number = 397
+lr = 0.00166941602502568
+batch_size = 16
+
 seed = 1048596
 deleted_sample = 0
 
-# Preprocess
-tmp = df.copy()
-tmp = tmp.sort_values("FECHA").copy()
 
-tmp["series"] = "kz"
-tmp["time_idx"] = tmp.groupby("series").cumcount()
-tmp["dow"] = tmp["FECHA"].dt.weekday.astype(int)
-tmp["month"] = tmp["FECHA"].dt.month.astype(int)
+
 if deleted_sample > 0:
     tmp = tmp.iloc[:-deleted_sample]
 

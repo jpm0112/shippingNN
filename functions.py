@@ -138,7 +138,7 @@ def run_tft_tftorch(
     lr,
     batch_size,
     seed,
-    train_cut,
+    train_cut
 ):
     """
     data: pandas DataFrame with columns:
@@ -151,6 +151,13 @@ def run_tft_tftorch(
 
     # -------------------- 0. Setup & feature definitions --------------------
     seed_everything(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 
     df = data.copy().sort_values(["series", "time_idx"])
 
@@ -528,6 +535,14 @@ def error_metrics(y_true, y_pred):
 
 def run_tft(data, target_col, window_size, test_size, grad_clip,
             d_model, n_head, num_layers, epoch_number, lr, batch_size, seed, train_cut):
+    seed_everything(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
     from pytorch_forecasting.data import GroupNormalizer
 
     target_normalizer = GroupNormalizer(
@@ -766,7 +781,13 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
 
 def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed):
 
+
     seed_everything(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     # device = select_device(device if isinstance(device, str) else None)
     print(f"Using device: {device_info(device)}")
     feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
