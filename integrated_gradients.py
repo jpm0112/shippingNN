@@ -21,31 +21,40 @@ torch.cuda.manual_seed_all(SEED)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-# Load data
-df = pd.read_csv("test_daily.csv")
-df['FECHA'] = pd.to_datetime(df['FECHA'])
-df = df.sort_values('FECHA')
+df = pd.read_csv("weekly_chile_data.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"])
+df = df.sort_values("FECHA")
+df = df.rename(columns=lambda x: x.replace(".", "_"))
 
-target_col = 'TOTAL_TEUS'
+# --- single model parameters ---
+target_col = "FE"
+window_size = 48
+test_size = 24
+d_model = 128 * 2
+n_head = 4 * 2
+num_layers = 2  # lstm layers
+epoch_number = 20
+lr = 1e-4
+batch_size = 32
+dropout = 0.2
+grad_clip = 0.2
+seed = 1048596
+deleted_sample = 0
+
+hidden_size = 64
+
+# Preprocess
+tmp = df.copy()
+tmp = tmp.sort_values("FECHA").copy()
+
+tmp["series"] = "kz"
+tmp["time_idx"] = tmp.groupby("series").cumcount()
+tmp["dow"] = tmp["FECHA"].dt.weekday.astype(int)
+tmp["month"] = tmp["FECHA"].dt.month.astype(int)
+if deleted_sample > 0:
+    tmp = tmp.iloc[:-deleted_sample]
+
 feature_cols = [col for col in df.columns if col not in ['FECHA', target_col]]
-
-# Model parameters
-window_size = 30
-test_size = 30
-batch_size = 16
-hidden_size = 32
-num_layers = 2
-epoch_number = 1000
-lr = 0.01
-
-window_size = 30
-test_size = 30
-batch_size = 16
-hidden_size = 32
-num_layers = 2
-epoch_number = 1000
-lr = 0.01
-
 # Split
 train_df = df[:-test_size]
 test_df = df[-(test_size + window_size):]
