@@ -776,7 +776,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
     real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
 
-    return real, preds, [model, X_test, X_train]
+    return real, preds, [model, X_test, X_train, feature_cols]
 
 
 def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed):
