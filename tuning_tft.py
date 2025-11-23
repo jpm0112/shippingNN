@@ -25,6 +25,7 @@ country = "chile"
 
 df = pd.read_csv("weekly_chile_data.csv")
 tmp = df.copy().sort_values("FECHA")
+tmp["series"] = "chile"  # specific for TFT
 
 if deleted_sample > 0:
     tmp = tmp.iloc[:-deleted_sample]
@@ -54,12 +55,12 @@ ax = AxClient()
 ax.create_experiment(
     name="tft_experiment",
     parameters=[
-        {"name": "window_size", "type": "choice", "values": [12, 24, 48], "value_type": "int"},
-        {"name": "test_size", "type": "choice", "values": [4,8,24]},
+        {"name": "window_size", "type": "choice", "values": [24,48], "value_type": "int"},
+        {"name": "test_size", "type": "choice", "values": [4, 8, 12]},
         {"name": "d_model", "type": "choice", "values": [256, 512]},
         {"name": "n_head", "type": "choice", "values": [4, 8]},
         {"name": "num_layers", "type": "range", "bounds": [1, 3], "value_type": "int"},
-        {"name": "epoch_number", "type": "range", "bounds": [50, 1000], "value_type": "int"},
+        {"name": "epoch_number", "type": "range", "bounds": [300, 1500], "value_type": "int"},
         {"name": "batch_size", "type": "choice", "values": [8, 16, 32]},
         {"name": "lr", "type": "range", "bounds": [1e-5, 1e-2], "log_scale": True},
         {"name": "grad_clip", "type": "range", "bounds": [0.01, 1.0], "log_scale": True},
