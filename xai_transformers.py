@@ -24,21 +24,31 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 df = pd.read_csv("weekly_chile_data.csv")
 tmp = df.copy().sort_values("FECHA")
 
-# --- single model parameters ---
-test_size = 12
+# BEST FE
+test_size = 24
 target_col = "FE"
-window_size = 24
-batch_size = 32
+window_size = 48
+batch_size = 16
 
-d_model = 512
-n_head = 4
-num_layers = 2  # lstm layers
-epoch_number = 1923
-lr = 0.000624320203522898
-
+d_model = 1024
+n_head = 16
+num_layers = 1  # lstm layers
+epoch_number = 2000
+lr = 1.00E-05
 
 seed = 1048596
 deleted_sample = 0
+
+
+
+
+# BEST NAW
+
+
+
+
+
+
 
 
 
@@ -64,6 +74,17 @@ model = model_list[0]
 X_test = model_list[1]
 X_train = model_list[2]
 feature_names = model_list[3]
+
+plt.figure(figsize=(12, 6))
+plt.plot(y_true, marker="o", label="Real")
+plt.plot(y_pred, marker="o", label="Prediction")
+plt.title("Prediction (original scale)")
+plt.xlabel("Weeks")
+plt.ylabel(target_col)
+plt.legend()
+plt.grid(True, linestyle="--", linewidth=0.5)
+plt.tight_layout()
+plt.savefig("plots/z_transformers_prediction.png", dpi=200)
 
 
 def predict_fn(flat_X):
@@ -267,7 +288,21 @@ plt.ylabel("Signed contribution (sum over features)")
 plt.title("LIME – Contribution by Time Step")
 plt.tight_layout()
 plt.show()
+
+
+
+
+
+
 #___________________________________________________________________________
+
+
+
+
+
+
+
+
 
 # ---------- TIMESHAP (fixed) ----------
 from timeshap.explainer import (
@@ -396,6 +431,12 @@ shap.dependence_plot(
     X_sample,
     interaction_index=interaction_indices[0],
 )
+
+
+
+
+
+
 
 
 

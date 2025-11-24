@@ -660,7 +660,7 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
 
 
 
-def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr,
+def run_transformer2(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr,
                     device, seed, optimizer_type='adam',weight_decay=1e-4):
 
     seed_everything(seed)
@@ -778,6 +778,154 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
 
     return real, preds, [model, X_test, X_train, feature_cols]
 
+
+def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr,
+                    device, seed, optimizer_type='adam', weight_decay=1e-4, early_stop=True, patience=200, min_delta=1e-5):
+
+    seed_everything(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    print(f"Using device: {device_info(device)}")
+
+    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
+
+    # ===== Split train/test =====
+    train_df = df[:-test_size]
+    test_df = df[-(test_size + window_size):]
+
+    # ===== Manual scaling =====
+    train_features = train_df[feature_cols].values
+    train_target = train_df[target_col].values
+    min_vals = train_features.min(axis=0)
+    max_vals = train_features.max(axis=0)
+    target_min = train_target.min()
+    target_max = train_target.max()
+
+    scaled_train = (train_features - min_vals) / (max_vals - min_vals + 1e-8)
+    scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
+
+    # Train windows
+    X_train, y_train = [], []
+    for i in range(len(train_df) - window_size):
+        X_train.append(scaled_train[i:i + window_size])
+        y_train.append(scaled_target[i + window_size])
+
+    X_train = np.array(X_train)
+    y_train = np.array(y_train)
+
+    # ===== Test prep =====
+    test_features = test_df[feature_cols].values
+    test_target = test_df[target_col].values
+    scaled_test = (test_features - min_vals) / (max_vals - min_vals + 1e-8)
+    scaled_test_target = (test_target - target_min) / (target_max - target_min + 1e-8)
+
+    X_test, y_test = [], []
+    for i in range(test_size):
+        X_test.append(scaled_test[i:i + window_size])
+        y_test.append(scaled_test_target[i + window_size])
+
+    X_test = np.array(X_test)
+    y_test = np.array(y_test)
+
+    # ===== Tensors & DataLoader =====
+    X_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
+    y_tensor = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1).to(device)
+
+    dataset = TensorDataset(X_tensor, y_tensor)
+    dataloader = DataLoader(dataset, batch_size, shuffle=False)
+
+    # ===== Model =====
+    class TransformerForecast(nn.Module):
+        def __init__(self, input_size, d_model=d_model, nhead=n_head,
+                     num_layers=num_layers, max_len=window_size):
+            super().__init__()
+            self.input_linear = nn.Linear(input_size, d_model)
+
+            # learned positional encodings
+            self.positional_encoding = nn.Parameter(torch.zeros(1, max_len, d_model))
+            nn.init.normal_(self.positional_encoding, std=0.02)
+
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=d_model,
+                nhead=n_head,
+                batch_first=True
+            )
+            self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+            self.fc = nn.Linear(d_model, 1)
+
+        def forward(self, x):
+            x = self.input_linear(x)  # (B, T, D)
+            x = x + self.positional_encoding[:, :x.size(1), :]
+            x = self.transformer(x)
+            out = x[:, -1, :]
+            return self.fc(out)
+
+    model = TransformerForecast(input_size=X_train.shape[2]).to(device)
+
+    criterion = nn.MSELoss()
+    if optimizer_type == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=weight_decay)
+    if optimizer_type == 'adamw':
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    if optimizer_type == 'sgd':
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=0.9)
+    if optimizer_type == 'Adagrad':
+        optimizer = torch.optim.Adagrad(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # ===== Early stopping state =====
+    best_loss = float("inf")
+    epochs_no_improve = 0
+    epochs_run = 0
+
+    # ===== Training =====
+    for epoch in range(epoch_number):
+        model.train()
+        running_loss = 0.0
+        n_samples = 0
+
+        for batch_X, batch_y in dataloader:
+            optimizer.zero_grad()
+            output = model(batch_X)
+            loss = criterion(output, batch_y)
+            loss.backward()
+            optimizer.step()
+
+            bs_actual = batch_X.size(0)
+            running_loss += loss.item() * bs_actual
+            n_samples += bs_actual
+
+        epoch_loss = running_loss / max(n_samples, 1)
+        epochs_run = epoch + 1  # record how many epochs we have completed
+
+        if (epoch + 1) % 10 == 0:
+            print(f"Epoch {epoch + 1}, Loss: {epoch_loss:.4f}")
+
+        # --- convergence termination ---
+        if early_stop:
+            if best_loss - epoch_loss > min_delta:
+                best_loss = epoch_loss
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+
+            if epochs_no_improve >= patience:
+                print(f"Early stopping at epoch {epoch + 1} (best_loss={best_loss:.4f})")
+                break
+
+    # ===== Evaluation =====
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
+    model.eval()
+    with torch.no_grad():
+        preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
+
+    preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
+    real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
+
+    # Added epochs_run to the returned info
+    return real, preds, [model, X_test, X_train, feature_cols, epochs_run]
 
 def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed):
 
