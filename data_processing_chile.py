@@ -7,12 +7,12 @@ folder = r"C:\Users\jpm0112\OneDrive - Auburn University\Research - port shippin
 all_files = glob.glob(os.path.join(folder, "*.csv"))
 
 
-for f in all_files:
-    try:
-        df_tmp = pd.read_csv(f, low_memory=False)
-        print(f"{os.path.basename(f)} → {len(df_tmp.columns)} columns")
-    except Exception as e:
-        print(f"ERROR reading {os.path.basename(f)} → {e}")
+# for f in all_files:
+#     try:
+#         df_tmp = pd.read_csv(f, low_memory=False)
+#         print(f"{os.path.basename(f)} → {len(df_tmp.columns)} columns")
+#     except Exception as e:
+#         print(f"ERROR reading {os.path.basename(f)} → {e}")
 
 
 # df_list = [pd.read_csv(f) for f in all_files]
@@ -736,15 +736,40 @@ for filename in os.listdir(folder):
                 weekly_df = pd.merge(weekly_df, weekly_macro_df, how='left', on='WEEK')
 
 
-new_columns = [col for col in weekly_df.columns if col not in original_columns]
-weekly_df[new_columns] = weekly_df[new_columns].fillna(method='ffill').fillna(method='bfill')
+# new_columns = [col for col in weekly_df.columns if col not in original_columns]
+# weekly_df[new_columns] = weekly_df[new_columns].fillna(method='ffill').fillna(method='bfill')
 
 
 
 
 
 
-weekly_df.to_csv("chile_data.csv", index=False)
+# weekly_df.to_csv("chile_data.csv", index=False)
 
 
 
+weekly_df = weekly_df.sort_values("WEEK")
+
+# Build a complete weekly range
+full_weeks = pd.date_range(
+    start=weekly_df["WEEK"].min(),
+    end=weekly_df["WEEK"].max(),
+    freq="W-MON"  # pick one and stick to it
+)
+
+# Reindex to full weekly grid
+weekly_df = (
+    weekly_df.set_index("WEEK")
+    .reindex(full_weeks)
+)
+
+weekly_df.index.name = "FECHA"  # Darts time column
+weekly_df = weekly_df.reset_index()
+
+# Fill ALL gaps created by empty weeks
+weekly_df = weekly_df.fillna(method='ffill').fillna(method='bfill')
+
+# -------------------------------------------------------
+#  SAVE
+# -------------------------------------------------------
+weekly_df.to_csv("chile_data_darts.csv", index=False)
