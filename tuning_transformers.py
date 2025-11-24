@@ -1,6 +1,9 @@
 # bayesopt_transformer_ax.py
 import warnings
 
+from lightning import seed_everything
+import numpy as np
+
 warnings.filterwarnings("ignore")
 
 from ax.service.ax_client import AxClient
@@ -14,24 +17,14 @@ from functions import run_transformer, error_metrics
 
 # ===== Data prep =====
 deleted_sample = 0
-test_size = 24
+test_size = 12
 target_col = "FE"
-metric = "mape"  # objective to minimize
-minimize = True
-country = 'uruguay'
-df = pd.read_csv("weekly_uruguay_data.csv")
-
-# for uruguay data
-df.rename(columns={"week": "FECHA"}, inplace=True)
-df["FECHA"] = pd.to_datetime(df["FECHA"])
-
-
-# df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
-df = df.sort_values("FECHA").rename(columns=lambda x: x.replace(".", "_"))
-
+metric = "r2"  # objective to minimize
+minimize = False
+country = 'chile'
+df = pd.read_csv("weekly_chile_data.csv")
 tmp = df.copy().sort_values("FECHA")
-tmp["series"] = "kz"  # harmless for baseline
-tmp["time_idx"] = tmp.groupby("series").cumcount()
+
 if deleted_sample > 0:
     tmp = tmp.iloc[:-deleted_sample]
 
@@ -42,7 +35,7 @@ results_dir.mkdir(parents=True, exist_ok=True)
 csv_path = results_dir / f"transformer_trials_{country}_{timestamp}.csv"
 csv_file = csv_path.open("w", newline="")
 csv_writer = csv.DictWriter(csv_file, fieldnames=[
-    "trial_index",
+    "trial_index", "test_size",
     "window_size", "batch_size", "d_model", "n_head", "num_layers",
     "epoch_number", "lr",#"optimizer", #"weight_decay",
     "mae", "mape", "mse", "rmse", "r2", "runtime_s", "started_at"
@@ -54,9 +47,10 @@ ax = AxClient()
 ax.create_experiment(
     name="transformer_experiment",
     parameters=[
-        {"name": "window_size", "type": "range", "bounds": [42, 43], "value_type": "int"},
+        {"name": "test_size", "type": "choice", "values": [12,16,24], "value_type": "int"},
+        {"name": "window_size", "type": "range", "bounds": [24,48], "value_type": "int"},
         {"name": "d_model", "type": "choice", "values": [256, 512, 1024]},
-        {"name": "n_head", "type": "choice", "values": [8, 16,32]},
+        {"name": "n_head", "type": "choice", "values": [4,8,16,32]},
         {"name": "num_layers", "type": "range", "bounds": [1, 10], "value_type": "int"},
         {"name": "epoch_number", "type": "range", "bounds": [300,2000], "value_type": "int"},
         {"name": "batch_size", "type": "choice", "values": [16, 32, 64]},
@@ -68,9 +62,11 @@ ax.create_experiment(
 )
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-iterations = 500
+iterations = 50
 
-for _ in range(iterations):
+for i in range(iterations):
+    print("=== Trial %d ===" % (i + 1))
+    print("________________________________")
     params, trial_index = ax.get_next_trial()
     started_at = datetime.now()
 
@@ -81,12 +77,17 @@ for _ in range(iterations):
         continue
 
     try:
+        seed = 1048596
+        seed_everything(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
         # === Train/eval ===
-        y_true, y_pred = run_transformer(
+        y_true, y_pred, list = run_transformer(
             df=tmp,
             target_col=target_col,
             window_size=int(params["window_size"]),
-            test_size=test_size,
+            test_size=int(params["test_size"]),
             batch_size=int(params["batch_size"]),
             d_model=d_model,
             n_head=n_head,
@@ -98,14 +99,25 @@ for _ in range(iterations):
             #optimizer=params["optimizer"],
             # weight_decay=float(params["weight_decay"]),
         )
+        print(f"Trial {trial_index} completed.")
+        print("window_size ", params["window_size"])
+        print("batch_size ", params["batch_size"])
+        print("d_model ", d_model)
+        print("n_head ", n_head)
+        print("num_layers ", params["num_layers"])
+        print("epoch_number ", params["epoch_number"])
+        print("lr ", params["lr"])
 
         mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
         runtime_s = (datetime.now() - started_at).total_seconds()
-
-        ax.complete_trial(trial_index=trial_index, raw_data={metric: float(mape)})
+        if metric == "mape":
+            ax.complete_trial(trial_index=trial_index, raw_data={metric: float(mape)})
+        else:
+            ax.complete_trial(trial_index=trial_index, raw_data={metric: float(r2)})
 
         csv_writer.writerow({
             "trial_index": trial_index,
+            "test_size": int(params["test_size"]),
             "window_size": int(params["window_size"]),
             "batch_size": int(params["batch_size"]),
             "d_model": d_model,
