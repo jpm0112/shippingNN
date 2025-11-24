@@ -743,30 +743,6 @@ for filename in os.listdir(folder):
 
 
 
-weekly_df = weekly_df.sort_values("WEEK")
-
-# Build a complete weekly range
-full_weeks = pd.date_range(
-    start=weekly_df["WEEK"].min(),
-    end=weekly_df["WEEK"].max(),
-    freq="W-MON"  # pick one and stick to it
-)
-
-# Reindex to full weekly grid
-weekly_df = (
-    weekly_df.set_index("WEEK")
-    .reindex(full_weeks)
-)
-
-weekly_df.index.name = "FECHA"  # Darts time column
-weekly_df = weekly_df.reset_index()
-
-
-
-# -------------------------------------------------------
-#  SAVE
-# -------------------------------------------------------
-weekly_df.to_csv("weekly_chile_data_darts.csv", index=False)
 
 weekly_df = weekly_df.sort_values("WEEK")
 
