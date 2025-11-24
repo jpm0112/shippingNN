@@ -7,8 +7,8 @@ from sklearn.linear_model import LassoCV
 from functions import error_metrics
 
 # Load and prepare data
-df = pd.read_csv("chile_data.csv")
-df["FECHA"] = pd.to_datetime(df["FECHA"] + "-5", format="%Y-%W-%w")
+df = pd.read_csv("weekly_chile_data.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"] )
 df = df.sort_values("FECHA")
 
 # Parameters
@@ -64,7 +64,7 @@ preds_scaled = model.predict(X_test)
 # Evaluation
 
 
-# mae, mape, mse, rmse, r2 = error_metrics(y_test, preds_scaled)
+mae, mape, mse, rmse, r2 = error_metrics(y_test, preds_scaled)
 
 
 

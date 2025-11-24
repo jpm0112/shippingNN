@@ -41,8 +41,8 @@ csv_writer = csv.DictWriter(csv_file, fieldnames=[
 csv_writer.writeheader()
 
 # ==== Ax setup ====
-ax = AxClient()
-ax.create_experiment(
+client = AxClient()
+client.create_experiment(
     name="lstm_experiment",
     parameters=[
         {"name": "window_size", "type": "range", "bounds": [42, 43], "value_type": "int"},
@@ -60,7 +60,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 iterations = 500
 
 for _ in range(iterations):
-    params, trial_index = ax.get_next_trial()
+    params, trial_index = client.get_next_trial()
     started_at = datetime.now()
 
     # === Train/eval using your function ===
