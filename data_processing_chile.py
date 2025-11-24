@@ -3,7 +3,7 @@ import glob
 import os
 import gc
 
-folder = r"C:\Users\jpm0112\OneDrive - Auburn University\Research - port shipping cost\dataset\container_data"
+folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\container_data"
 all_files = glob.glob(os.path.join(folder, "*.csv"))
 
 
@@ -15,8 +15,8 @@ all_files = glob.glob(os.path.join(folder, "*.csv"))
 #         print(f"ERROR reading {os.path.basename(f)} → {e}")
 
 
-# df_list = [pd.read_csv(f) for f in all_files]
-# df = pd.concat(df_list, ignore_index=True)
+df_list = [pd.read_csv(f) for f in all_files[0:3]]
+df = pd.concat(df_list, ignore_index=True)
 
 
 
@@ -602,9 +602,18 @@ df = df.drop(columns=['NRO DE MANIFIESTO','CANTIDAD UNIDADES FISICAS','UNIDAD DE
 df = df[df["FLETE_per_TEU"] > 100]
 df = df[df["FLETE_per_TEU"] < 500000]
 
+
+
 df["FECHA"] = pd.to_datetime(df["FECHA DOC. TRANSPORTE"], format="%d%m%Y", errors="coerce")
 
 df["WEEK"] = df["FECHA"].dt.to_period("W").dt.start_time
+
+df = df.sort_values("WEEK")
+
+
+
+
+
 
 
 mean_cols = [
@@ -697,7 +706,7 @@ weekly_df = pivot_and_merge(weekly_df, df, 'coast', 'FLETE_per_TEU', agg_func='m
 
 original_columns = set(weekly_df.columns)
 
-folder = r"C:\Users\jpm0112\OneDrive - Auburn University\Research - port shipping cost\dataset\macrodata"
+folder = r"C:\Users\JP\OneDrive - Auburn University\Research - port shipping cost\dataset\macrodata"
 
 for filename in os.listdir(folder):
     if filename.endswith(".csv"):
@@ -736,36 +745,11 @@ for filename in os.listdir(folder):
                 weekly_df = pd.merge(weekly_df, weekly_macro_df, how='left', on='WEEK')
 
 
-# new_columns = [col for col in weekly_df.columns if col not in original_columns]
-# weekly_df[new_columns] = weekly_df[new_columns].fillna(method='ffill').fillna(method='bfill')
+new_columns = [col for col in weekly_df.columns if col not in original_columns]
+weekly_df[new_columns] = weekly_df[new_columns].fillna(method='ffill').fillna(method='bfill')
 
-# weekly_df.to_csv("chile_data.csv", index=False)
-
-
+weekly_df.to_csv("chile_data.csv", index=False)
 
 
-weekly_df = weekly_df.sort_values("WEEK")
 
-# Build a complete weekly range
-full_weeks = pd.date_range(
-    start=weekly_df["WEEK"].min(),
-    end=weekly_df["WEEK"].max(),
-    freq="W-MON"  # pick one and stick to it
-)
 
-# Reindex to full weekly grid
-weekly_df = (
-    weekly_df.set_index("WEEK")
-    .reindex(full_weeks)
-)
-
-weekly_df.index.name = "FECHA"  # Darts time column
-weekly_df = weekly_df.reset_index()
-
-# Fill ALL gaps created by empty weeks
-weekly_df = weekly_df.fillna(method='ffill').fillna(method='bfill')
-
-# -------------------------------------------------------
-#  SAVE
-# -------------------------------------------------------
-weekly_df.to_csv("chile_data_darts.csv", index=False)
