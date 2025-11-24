@@ -139,8 +139,8 @@ fixed_cols = df.columns[df.nunique() == 1].tolist()
 print(fixed_cols)
 df = df.drop(columns=fixed_cols)
 
-df = df[df["FECHA"] >= "2018-01-01"].copy()
-df = df[df["FECHA"] < "2025-01-01"].copy()
+df = df[df["FECHA"] >= "2017-12-07"].copy()
+df = df[df["FECHA"] < "2024-11-23"].copy()
 
 df["series"] = "chile"  # harmless for baseline
 df["time_idx"] = df.groupby("series").cumcount()
