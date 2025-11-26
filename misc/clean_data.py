@@ -2,7 +2,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-df = pd.read_csv("test_daily.csv")
+df = pd.read_csv("../test_daily.csv")
 
 df_with_target = df.copy()
 

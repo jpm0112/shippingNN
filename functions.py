@@ -13,12 +13,18 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
+import pytorch_lightning as pl  # <-- NEW
 
 from omegaconf import OmegaConf
 import tft_torch
 from tft_torch.tft import TemporalFusionTransformer
 import tft_torch.loss as tft_loss
 from tqdm.auto import tqdm  # progress bar
+
+from darts import TimeSeries
+from darts.models import TFTModel
+from darts.dataprocessing.transformers import Scaler
+from darts.metrics import mape
 
 def weight_init(m):
     """
@@ -1200,3 +1206,115 @@ def get_attention_maps(model, sample):
         x = layer.norm2(x)
 
     return attn_maps
+
+
+def run_darts_tft(df,
+                  target_col,
+                  test_size,
+                  window_size,
+                  hidden_size,
+                  lstm_layers,
+                  num_attention_heads,
+                  dropout,
+                  batch_size,
+                  n_epochs,
+                  lr,
+                  grad_clip=1.0,
+                  patience=20,
+                  min_delta=1e-4,
+                  seed=1048596,
+
+                  ):
+    """
+    Trains a Darts TFT model on a univariate weekly series and returns
+    model, predictions, and some metadata.
+    """
+    seed_everything(seed, workers=True)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        print("Running with cuda")
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        torch.use_deterministic_algorithms(True)
+        torch.set_float32_matmul_precision('highest')
+
+
+    output_chunk_length = test_size
+
+    # ---- 1. Build series ----
+    series = TimeSeries.from_dataframe(
+        df,
+        time_col="FECHA",
+        value_cols=target_col,
+    )
+
+    # ---- 2. Train/val split ----
+    val_size = test_size + window_size
+    train = series[:-val_size]
+    val = series[-val_size:]
+
+    # ---- 3. Scaling ----
+    scaler = Scaler()
+    train_scaled = scaler.fit_transform(train)
+    val_scaled = scaler.transform(val)
+
+    # ---- 4. Early stopping ----
+    early_stop = pl.callbacks.EarlyStopping(
+        monitor="val_loss",
+        patience=patience,
+        min_delta=min_delta,
+        mode="min",
+    )
+
+    # ---- 5. Model ----
+    model = TFTModel(
+        input_chunk_length=window_size,
+        output_chunk_length=output_chunk_length,
+        hidden_size=hidden_size,
+        lstm_layers=lstm_layers,
+        num_attention_heads=num_attention_heads,
+        dropout=dropout,
+        batch_size=batch_size,
+        n_epochs=n_epochs,
+        add_relative_index=True,
+        add_encoders={
+            "datetime_attribute": {
+                "past": ["weekofyear"],
+                "future": ["weekofyear"],
+            },
+            "cyclic": {
+                "past": ["weekofyear"],
+                "future": ["weekofyear"],
+            },
+        },
+        random_state=seed,
+        likelihood=None,
+        optimizer_kwargs={"lr": lr},
+
+        pl_trainer_kwargs={
+            "accelerator": "gpu" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu",
+            "callbacks": [early_stop],
+            "gradient_clip_val": grad_clip,
+            "gradient_clip_algorithm": "norm",
+        },
+    )
+
+    # ---- 6. Fit ----
+    model.fit(train_scaled, val_series=val_scaled, verbose=True, dataloader_kwargs={"num_workers": 0})
+
+    # ---- 7. Epochs actually run ----
+    epochs_ran = model.trainer.current_epoch + 1
+
+    # ---- 8. Forecast ----
+    pred_scaled = model.predict(n=test_size, dataloader_kwargs={"num_workers": 0})
+    pred = scaler.inverse_transform(pred_scaled)
+
+    val_last = val[-test_size:]
+
+    true_vals = val_last.values().flatten().tolist()
+    pred_vals = pred.values().flatten().tolist()
+    list = [model, train, val, scaler, epochs_ran]
+
+    return true_vals, pred_vals, list

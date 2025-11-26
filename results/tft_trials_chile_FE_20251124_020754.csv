@@ -1,0 +1,1 @@
+trial_index,window_size,test_size,hidden_size,lstm_layers,num_attention_heads,dropout,batch_size,lr,epochs,grad_clip,mae,mape,mse,rmse,r2,runtime_s,started_atepochs_ran

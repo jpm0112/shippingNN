@@ -1,3 +1,4 @@
+df['coast'] = df['PUERTO DE EMBARQUE'].map(grouped_coasts)
 import pandas as pd
 import glob
 import os
@@ -15,7 +16,7 @@ all_files = glob.glob(os.path.join(folder, "*.csv"))
 #         print(f"ERROR reading {os.path.basename(f)} → {e}")
 
 
-df_list = [pd.read_csv(f) for f in all_files[0:3]]
+df_list = [pd.read_csv(f) for f in all_files[0:2]]
 df = pd.concat(df_list, ignore_index=True)
 
 
@@ -497,7 +498,6 @@ grouped_coasts = {
     'SOCOMPA': 'SAW',
     'CABO NEGRO': 'SAW',
 }
-df['coast'] = df['PUERTO DE EMBARQUE'].map(grouped_coasts)
 
 # Calcular frecuencias y porcentajes
 frecuencias = df['PUERTO DE EMBARQUE'].value_counts(normalize=True)

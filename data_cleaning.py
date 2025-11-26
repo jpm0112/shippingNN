@@ -78,6 +78,8 @@ df = pd.read_csv("chile_data.csv")
 
 df = df.drop(columns=["MEAN_FLETE_per_TEU_AF", "MEAN_FLETE_per_TEU_ME",'MEAN_FLETE_per_TEU_OC'])
 
+
+df["FECHA"] = df["WEEK"]
 df = df.drop(columns=['WEEK'])
 
 cols_to_rename = {
@@ -139,8 +141,9 @@ fixed_cols = df.columns[df.nunique() == 1].tolist()
 print(fixed_cols)
 df = df.drop(columns=fixed_cols)
 
-df = df[df["FECHA"] >= "2017-12-07"].copy()
-df = df[df["FECHA"] < "2024-11-23"].copy()
+df = df[df["FECHA"] >= "2017-01-01"].copy()
+# df = df[df["FECHA"] < "2024-11-23"].copy()
+df = df[df["FECHA"] <= "2025-06-30"].copy()
 
 df["series"] = "chile"  # harmless for baseline
 df["time_idx"] = df.groupby("series").cumcount()
@@ -148,23 +151,45 @@ df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
 df["dow"] = df["FECHA"].dt.weekday.astype(int)
 df["month"] = df["FECHA"].dt.month.astype(int)
 
-df = df.drop(columns="series")
+df = df.drop(columns=["series","dow"])
 
 
 
 df.columns = df.columns.str.replace(".", "_", regex=False)
 
+df = df.sort_values("FECHA")
+
+# full_weeks = pd.date_range(
+#     start=df["FECHA"].min(),
+#     end=df["FECHA"].max(),
+#     freq="W-MON"
+# )
+#
+# df = (
+#     df.set_index("FECHA")
+#     .reindex(full_weeks)
+# )
+#
+# df.index.name = "FECHA"
+# df = df.reset_index()
+# df = df.fillna(method='ffill').fillna(method='bfill')
+
+
+
 df.to_csv("weekly_chile_data.csv", index=False)
 
-plt.figure(figsize=(10, 4))
-plt.plot(df["NUMERO DE ACEPTACION"])
-plt.title("Número de Aceptación")
-plt.xlabel("Index")
+
+
+
+plt.figure(figsize=(12, 4))
+plt.plot(df["FECHA"], df["NUMERO DE ACEPTACION"])
+plt.gca().xaxis.set_major_locator(plt.MaxNLocator(10))  # ~10 ticks
+plt.gcf().autofmt_xdate()
+plt.title("Número de Aceptación por Semana")
+plt.xlabel("Week")
 plt.ylabel("Valor")
 plt.tight_layout()
 plt.show()
-
-
 
 
 
