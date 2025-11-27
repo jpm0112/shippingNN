@@ -8,7 +8,7 @@ from ax.service.ax_client import AxClient
 from ax.service.utils.instantiation import ObjectiveProperties
 from datetime import datetime
 from pathlib import Path
-from functions import run_darts_tft, error_metrics
+from functions import run_darts_tft, error_metrics, run_darts_tft_with_for
 
 # ============================================================
 #  LOAD DATA
@@ -63,12 +63,12 @@ ax = AxClient()
 ax.create_experiment(
     name="tft_experiment",
     parameters=[
-        {"name": "test_size", "type": "choice", "values": [12,26,52], "value_type": "int"},
+        {"name": "test_size", "type": "choice", "values": [12], "value_type": "int"},
         {"name": "window_size", "type": "range", "bounds": [26,52], "value_type": "int"},
-        {"name": "hidden_size", "type": "choice", "values": [128, 256], "value_type": "int"},
+        {"name": "hidden_size", "type": "choice", "values": [64, 128, 256], "value_type": "int"},
         {"name": "lstm_layers", "type": "range", "bounds": [1, 3], "value_type": "int"},
         {"name": "num_attention_heads", "type": "choice", "values": [2, 4], "value_type": "int"},
-        {"name": "dropout", "type": "range", "bounds": [0.1, 0.5]},
+        {"name": "dropout", "type": "range", "bounds": [0.1, 0.6]},
         {"name": "batch_size", "type": "choice", "values": [32, 64], "value_type": "int"},
         {"name": "lr", "type": "range", "bounds": [1e-4, 1e-3], "log_scale": True},
         {"name": "grad_clip", "type": "fixed", "value": 1.0},
@@ -92,12 +92,34 @@ for i in range(iterations):
     try:
 
         tmp = df.copy().sort_values("FECHA")
-
         deleted_sample = int(params["test_size"])  # delete the test samples from the end
         if deleted_sample > 0:
             tmp = tmp.iloc[:-deleted_sample]
         # Run model
-        true_vals, pred_vals, out = run_darts_tft(
+        # true_vals, pred_vals, out = run_darts_tft(
+        #     df=tmp,
+        #     target_col=target_col,
+        #     test_size=int(params["test_size"]),
+        #     window_size=int(params["window_size"]),
+        #     hidden_size=int(params["hidden_size"]),
+        #     lstm_layers=int(params["lstm_layers"]),
+        #     num_attention_heads=int(params["num_attention_heads"]),
+        #     dropout=float(params["dropout"]),
+        #     batch_size=int(params["batch_size"]),
+        #     n_epochs=int(params["epochs"]),
+        #     lr=float(params["lr"]),
+        #     grad_clip=float(params["grad_clip"]),
+        #     patience=patience,
+        #     min_delta=min_delta,
+        #     seed=seed,
+        # )
+
+        # epochs_ran = out[5]
+        #
+        # # Metrics
+        # mae, mape, mse, rmse, r2 = error_metrics(true_vals, pred_vals)
+
+        mae, mape, mse, rmse, r2, epochs_ran = run_darts_tft_with_for(
             df=tmp,
             target_col=target_col,
             test_size=int(params["test_size"]),
@@ -114,11 +136,10 @@ for i in range(iterations):
             min_delta=min_delta,
             seed=seed,
         )
+        print("____________________________________________________________")
+        print(f"Trial {trial_index} results: MAE={mae:.4f}, MAPE={mape:.4f}, MSE={mse:.4f}, RMSE={rmse:.4f}, R2={r2:.4f}, Epochs Ran={epochs_ran}")
+        print("Parameters:", params)
 
-        epochs_ran = out[4]
-
-        # Metrics
-        mae, mape, mse, rmse, r2 = error_metrics(true_vals, pred_vals)
         runtime_s = (datetime.now() - started_at).total_seconds()
 
         ax.complete_trial(trial_index, raw_data={metric: float(mape)})
