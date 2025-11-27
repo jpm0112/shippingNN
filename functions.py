@@ -25,6 +25,8 @@ from darts import TimeSeries
 from darts.models import TFTModel
 from darts.dataprocessing.transformers import Scaler
 from darts.metrics import mape
+import copy
+
 
 def weight_init(m):
     """
@@ -933,7 +935,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     # Added epochs_run to the returned info
     return real, preds, [model, X_test, X_train, feature_cols, epochs_run]
 
-def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed):
+def run_lstm2(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed, patience, min_delta):
 
 
     seed_everything(seed)
@@ -1020,6 +1022,8 @@ def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, nu
         if (epoch + 1) % 10 == 0:
             print(f"Epoch {epoch + 1}, Loss: {loss.item():.4f}")
 
+
+
     # Evaluación
     X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
     model.eval()
@@ -1030,6 +1034,177 @@ def run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, nu
     real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
 
     return real, preds
+
+
+def run_lstm(df, target_col, window_size, test_size, batch_size,
+             hidden_size, num_layers, epoch_number, lr,
+             device, seed, patience, min_delta):
+    import copy
+
+    seed_everything(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    print(f"Using device: {device_info(device)}")
+
+    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
+
+    # Split train/test
+    train_df = df[:-test_size]
+    test_df = df[-(test_size + window_size):]
+
+    # Escalamiento manual (solo con train)
+    train_features = train_df[feature_cols].values
+    train_target = train_df[target_col].values
+
+    min_vals = train_features.min(axis=0)
+    max_vals = train_features.max(axis=0)
+    target_min = train_target.min()
+    target_max = train_target.max()
+
+    scaled_train = (train_features - min_vals) / (max_vals - min_vals + 1e-8)
+    scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
+
+    # Crear ventanas para entrenamiento (train + val)
+    X_all, y_all = [], []
+    for i in range(len(train_df) - window_size):
+        X_all.append(scaled_train[i:i + window_size])
+        y_all.append(scaled_target[i + window_size])
+
+    X_all = np.array(X_all)
+    y_all = np.array(y_all)
+
+    # Split train/val respetando orden temporal (último 20% como val)
+    num_samples = X_all.shape[0]
+    val_size = max(1, int(0.2 * num_samples))
+    train_size = num_samples - val_size
+
+    X_train = X_all[:train_size]
+    y_train = y_all[:train_size]
+    X_val = X_all[train_size:]
+    y_val = y_all[train_size:]
+
+    # Preparar test (misma escala)
+    test_features = test_df[feature_cols].values
+    test_target = test_df[target_col].values
+
+    scaled_test = (test_features - min_vals) / (max_vals - min_vals + 1e-8)
+    scaled_test_target = (test_target - target_min) / (target_max - target_min + 1e-8)
+
+    X_test, y_test = [], []
+    for i in range(test_size):
+        X_test.append(scaled_test[i:i + window_size])
+        y_test.append(scaled_test_target[i + window_size])
+
+    X_test = np.array(X_test)
+    y_test = np.array(y_test)
+
+    # Tensores
+    X_train_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
+    y_train_tensor = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1).to(device)
+    X_val_tensor = torch.tensor(X_val, dtype=torch.float32).to(device)
+    y_val_tensor = torch.tensor(y_val, dtype=torch.float32).unsqueeze(1).to(device)
+
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
+
+    # DataLoader
+    dataset = TensorDataset(X_train_tensor, y_train_tensor)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    # LSTM model
+    class LSTMForecast(nn.Module):
+        def __init__(self, input_size, hidden_size=hidden_size, num_layers=num_layers):
+            super(LSTMForecast, self).__init__()
+            self.lstm = nn.LSTM(
+                input_size,
+                hidden_size,
+                num_layers,
+                batch_first=True,
+                dropout=0.3 if num_layers > 1 else 0.0
+            )
+            self.fc = nn.Linear(hidden_size, 1)
+
+        def forward(self, x):
+            out, _ = self.lstm(x)
+            out = out[:, -1, :]
+            return self.fc(out)
+
+    model = LSTMForecast(input_size=X_train.shape[2]).to(device)
+    criterion = nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+
+    # Early stopping vars
+    best_val_loss = float("inf")
+    best_state = None
+    epochs_no_improve = 0
+    train_losses = []
+    val_losses = []
+
+    for epoch in range(epoch_number):
+        model.train()
+        running_loss = 0.0
+        num_train_samples = 0
+
+        for batch_X, batch_y in dataloader:
+            optimizer.zero_grad()
+            output = model(batch_X)
+            loss = criterion(output, batch_y)
+            loss.backward()
+            optimizer.step()
+
+            bs = batch_X.size(0)
+            running_loss += loss.item() * bs
+            num_train_samples += bs
+
+        epoch_train_loss = running_loss / max(1, num_train_samples)
+        train_losses.append(epoch_train_loss)
+
+        # Validation
+        model.eval()
+        with torch.no_grad():
+            val_output = model(X_val_tensor)
+            val_loss = criterion(val_output, y_val_tensor).item()
+        val_losses.append(val_loss)
+
+        if (epoch + 1) % 10 == 0 or epoch == 0:
+            print(f"Epoch {epoch + 1}/{epoch_number} - "
+                  f"Train Loss: {epoch_train_loss:.6f} - Val Loss: {val_loss:.6f}")
+
+        # Early stopping
+        if val_loss < best_val_loss - min_delta:
+            best_val_loss = val_loss
+            best_state = copy.deepcopy(model.state_dict())
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= patience:
+                print(f"Early stopping at epoch {epoch + 1}")
+                break
+
+    # Restore best model
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    epochs_ran = len(train_losses)
+
+    # Evaluación en test
+    model.eval()
+    with torch.no_grad():
+        preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
+
+    preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
+    real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
+
+    # "scalers"
+    scaler_cov = {"min": min_vals, "max": max_vals}
+    scaler_y = {"min": target_min, "max": target_max}
+
+    out_list = [model, train_losses, val_losses, scaler_y, scaler_cov, epochs_ran]
+
+    return real, preds, out_list
 
 
 def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed = 1048596):
@@ -1208,7 +1383,7 @@ def get_attention_maps(model, sample):
     return attn_maps
 
 
-def run_darts_tft(df,
+def run_darts_tft2(df,
                   target_col,
                   test_size,
                   window_size,
@@ -1250,10 +1425,14 @@ def run_darts_tft(df,
         value_cols=target_col,
     )
 
+
+
     # ---- 2. Train/val split ----
     val_size = test_size + window_size
     train = series[:-val_size]
     val = series[-val_size:]
+
+
 
     # ---- 3. Scaling ----
     scaler = Scaler()
@@ -1318,3 +1497,206 @@ def run_darts_tft(df,
     list = [model, train, val, scaler, epochs_ran]
 
     return true_vals, pred_vals, list
+
+
+def run_darts_tft(df,
+                  target_col,
+                  test_size,
+                  window_size,
+                  hidden_size,
+                  lstm_layers,
+                  num_attention_heads,
+                  dropout,
+                  batch_size,
+                  n_epochs,
+                  lr,
+                  grad_clip=1.0,
+                  patience=20,
+                  min_delta=1e-4,
+                  seed=1048596):
+    """
+    Trains a Darts TFT model using target + all other columns as past covariates.
+    Returns true_vals, pred_vals, [model, train, val, scaler_target, scaler_cov, epochs_ran].
+    """
+    seed_everything(seed, workers=True)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        print("Running with cuda")
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        torch.use_deterministic_algorithms(True)
+        torch.set_float32_matmul_precision('highest')
+
+    output_chunk_length = test_size
+
+    # ---- 1. Build target series ----
+    series = TimeSeries.from_dataframe(
+        df,
+        time_col="FECHA",
+        value_cols=target_col,
+    )
+
+    # ---- 1b. Build past covariates from all other columns ----
+    feature_cols = [c for c in df.columns if c not in ["FECHA", target_col]]
+    past_cov = TimeSeries.from_dataframe(
+        df,
+        time_col="FECHA",
+        value_cols=feature_cols,
+    )
+
+    # ---- 2. Train/val split ----
+    val_size = test_size + window_size
+    train = series[:-val_size]
+    val = series[-val_size:]
+
+    train_past = past_cov[:-val_size]
+    # full past covariates (for prediction later)
+    full_past = past_cov
+
+    # ---- 3. Scaling ----
+    scaler_y = Scaler()
+    train_scaled = scaler_y.fit_transform(train)
+    val_scaled = scaler_y.transform(val)
+
+    scaler_cov = Scaler()
+    train_past_scaled = scaler_cov.fit_transform(train_past)
+    full_past_scaled = scaler_cov.transform(full_past)
+    val_past_scaled = full_past_scaled[-val_size:]
+
+    # ---- 4. Early stopping ----
+    early_stop = pl.callbacks.EarlyStopping(
+        monitor="val_loss",
+        patience=patience,
+        min_delta=min_delta,
+        mode="min",
+    )
+
+    # ---- 5. Model ----
+    model = TFTModel(
+        input_chunk_length=window_size,
+        output_chunk_length=output_chunk_length,
+        hidden_size=hidden_size,
+        lstm_layers=lstm_layers,
+        num_attention_heads=num_attention_heads,
+        dropout=dropout,
+        batch_size=batch_size,
+        n_epochs=n_epochs,
+        add_relative_index=True,
+        add_encoders={
+            "datetime_attribute": {
+                "past": ["weekofyear"],
+                "future": ["weekofyear"],
+            },
+            "cyclic": {
+                "past": ["weekofyear"],
+                "future": ["weekofyear"],
+            },
+        },
+        random_state=seed,
+        likelihood=None,
+        optimizer_kwargs={"lr": lr},
+        pl_trainer_kwargs={
+            "accelerator": "gpu" if torch.cuda.is_available()
+            else "mps" if torch.backends.mps.is_available()
+            else "cpu",
+            "callbacks": [early_stop],
+            "gradient_clip_val": grad_clip,
+            "gradient_clip_algorithm": "norm",
+        },
+    )
+
+    # ---- 6. Fit ----
+    model.fit(
+        train_scaled,
+        past_covariates=train_past_scaled,
+        val_series=val_scaled,
+        val_past_covariates=val_past_scaled,
+        verbose=True,
+        dataloader_kwargs={"num_workers": 0},
+    )
+
+    # ---- 7. Epochs actually run ----
+    epochs_ran = model.trainer.current_epoch + 1
+
+    # ---- 8. Forecast ----
+    # Use full_past_scaled so model has covariates over history + horizon
+    pred_scaled = model.predict(
+        n=test_size,
+        past_covariates=full_past_scaled,
+        dataloader_kwargs={"num_workers": 0},
+    )
+    pred = scaler_y.inverse_transform(pred_scaled)
+
+    val_last = val[-test_size:]
+
+    true_vals = val_last.values().flatten().tolist()
+    pred_vals = pred.values().flatten().tolist()
+    out_list = [model, train, val, scaler_y, scaler_cov, epochs_ran]
+
+    return true_vals, pred_vals, out_list
+
+
+def run_darts_tft_with_for(df,
+              target_col,
+              test_size,
+              window_size,
+              hidden_size,
+              lstm_layers,
+              num_attention_heads,
+              dropout,
+              batch_size,
+              n_epochs,
+              lr,
+              grad_clip=1.0,
+              patience=20,
+              min_delta=1e-4,
+              seed=1048596):
+    mae_values = []
+    mape_values = []
+    mse_values = []
+    rmse_values = []
+    r2_values = []
+    n_epochs_values = []
+
+    for i in range(5):
+
+
+
+         # Run model
+        tmp = df.copy().sort_values("FECHA")
+        deleted_sample = test_size*(i+1)  # delete the test samples from the end
+        if deleted_sample > 0:
+            tmp = tmp.iloc[:-deleted_sample]
+        y_true, y_pred, out = run_darts_tft(
+            tmp,
+            target_col,
+            test_size,
+            window_size,
+            hidden_size,
+            lstm_layers,
+            num_attention_heads,
+            dropout,
+            batch_size,
+            n_epochs,
+            lr,
+            grad_clip,
+            patience,
+            min_delta,
+            seed
+        )
+
+        mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
+
+        mae_values.append(mae)
+        mape_values.append(mape)
+        mse_values.append(mse)
+        rmse_values.append(rmse)
+        r2_values.append(r2)
+        n_epochs_values.append(out[5])
+    print(mape_values)
+    mean_epochs = np.mean(n_epochs_values)  # dummy values for errors
+    return (np.mean(mae_values), np.mean(mape_values), np.mean(mse_values),
+            np.mean(rmse_values), np.mean(r2_values), mean_epochs)
+

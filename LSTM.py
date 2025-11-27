@@ -41,7 +41,7 @@ num_layers = 2
 epoch_number = 20
 lr = 0.0001
 
-real, preds = run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed)
+real, preds = run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed, patience, min_delta)
 
 print('')
 print("Error Metrics:")
