@@ -1660,7 +1660,7 @@ def run_darts_tft_with_for(df,
     r2_values = []
     n_epochs_values = []
 
-    for i in range(5):
+    for i in range(3):
 
 
 
