@@ -18,6 +18,7 @@ df["FECHA"] = pd.to_datetime(df["FECHA"])
 df = df.sort_values("FECHA")
 
 target_col = "FE"
+target_col = "NE"
 metric = "mape"
 minimize = True
 country = "chile"
