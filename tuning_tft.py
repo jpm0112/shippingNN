@@ -64,7 +64,7 @@ ax = AxClient()
 ax.create_experiment(
     name="tft_experiment",
     parameters=[
-        {"name": "test_size", "type": "choice", "values": [12], "value_type": "int"},
+        {"name": "test_size", "type": "choice", "values": [12,26,52], "value_type": "int"},
         {"name": "window_size", "type": "range", "bounds": [26,52], "value_type": "int"},
         {"name": "hidden_size", "type": "choice", "values": [64, 128, 256], "value_type": "int"},
         {"name": "lstm_layers", "type": "range", "bounds": [1, 3], "value_type": "int"},
@@ -72,7 +72,7 @@ ax.create_experiment(
         {"name": "dropout", "type": "range", "bounds": [0.1, 0.6]},
         {"name": "batch_size", "type": "choice", "values": [32, 64], "value_type": "int"},
         {"name": "lr", "type": "range", "bounds": [1e-4, 1e-3], "log_scale": True},
-        {"name": "grad_clip", "type": "fixed", "value": 1.0},
+        {"name": "grad_clip", "type": "range", "bounds": [0.5, 3]},
         {"name": "epochs", "type": "fixed", "value": 2000},
     ],
     objectives={metric: ObjectiveProperties(minimize=True)},

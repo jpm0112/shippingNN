@@ -70,13 +70,17 @@ df.to_csv("weekly_uruguay_data.csv", index=False)
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.metrics import mean_absolute_error
-from functions import error_metrics
+# from sklearn.metrics import mean_absolute_error
+# from functions import error_metrics
 
 df = pd.read_csv("chile_data.csv")
 
 
 df = df.drop(columns=["MEAN_FLETE_per_TEU_AF", "MEAN_FLETE_per_TEU_ME",'MEAN_FLETE_per_TEU_OC'])
+
+
+df = df.drop(columns = ['FOB TOTAL','FLETE TOTAL', 'SEGURO TOTAL', 'PESO BRUTO TOTAL', 'ITEMS TOTALES'])
+
 
 
 df["FECHA"] = df["WEEK"]
@@ -94,34 +98,11 @@ cols_to_rename = {
 
 df = df.rename(columns=cols_to_rename)
 
-df_without_targets = df.drop(columns=["FE", "NAE","NAW","NE","SE","SAW","SAE"])
-
-cols_to_drop = df_without_targets.columns[df_without_targets.nunique() == 1].tolist()
-# cols_to_drop += ["INCOTERMS","PAIS_ORIGEN"]
-cols_to_drop_temp = ["FECHA"]
-df_without_targets = df_without_targets.drop(columns=cols_to_drop)
-df_without_targets = df_without_targets.drop(columns=cols_to_drop_temp)
 
 
-# to print the pairs of highly correlated features
-threshold = 0.90
-corr = df_without_targets.corr().abs()
-pairs = []
-for i in range(len(corr.columns)):
-    for j in range(i + 1, len(corr.columns)):
-        if corr.iloc[i, j] > threshold:
-            pairs.append((corr.columns[i], corr.columns[j], corr.iloc[i, j]))
 
-pairs
-
-corr = df_without_targets.corr().abs()
-upper = np.triu(corr, k=1)
-to_drop = [column for column in corr.columns if any(upper[:, corr.columns.get_loc(column)] > 0.95)]
-
-df_without_targets = df_without_targets.drop(columns=to_drop)
-cols_to_drop += to_drop
-
-df = df.drop(columns=cols_to_drop)
+df = df[df["FECHA"] >= "2017-01-01"].copy()
+df = df[df["FECHA"] <= "2025-06-30"].copy()
 
 
 def replace_zeros_with_neighbors_mean(df, col):
@@ -137,13 +118,46 @@ for col in df.columns:
     if col.startswith("MEAN_FLETE"):
         df = replace_zeros_with_neighbors_mean(df, col)
 
+
+
+df_without_targets = df.drop(columns=["FE", "NAE","NAW","NE","SE","SAW","SAE"])
+
+cols_to_drop = df_without_targets.columns[df_without_targets.nunique() == 1].tolist()
+# cols_to_drop += ["INCOTERMS","PAIS_ORIGEN"]
+cols_to_drop_temp = ["FECHA"]
+df_without_targets = df_without_targets.drop(columns=cols_to_drop)
+df_without_targets = df_without_targets.drop(columns=cols_to_drop_temp)
+
+
+
+
+
+# to print the pairs of highly correlated features
+threshold = 0.85
+corr = df_without_targets.corr().abs()
+pairs = []
+for i in range(len(corr.columns)):
+    for j in range(i + 1, len(corr.columns)):
+        if corr.iloc[i, j] > threshold:
+            pairs.append((corr.columns[i], corr.columns[j], corr.iloc[i, j]))
+
+pairs
+
+len(pairs)
+
+corr = df_without_targets.corr().abs()
+upper = np.triu(corr, k=1)
+to_drop = [column for column in corr.columns if any(upper[:, corr.columns.get_loc(column)] > threshold)]
+
+df_without_targets = df_without_targets.drop(columns=to_drop)
+cols_to_drop += to_drop
+
+df = df.drop(columns=cols_to_drop)
+
 fixed_cols = df.columns[df.nunique() == 1].tolist()
 print(fixed_cols)
 df = df.drop(columns=fixed_cols)
 
-df = df[df["FECHA"] >= "2017-01-01"].copy()
-# df = df[df["FECHA"] < "2024-11-23"].copy()
-df = df[df["FECHA"] <= "2025-06-30"].copy()
 
 df["series"] = "chile"  # harmless for baseline
 df["time_idx"] = df.groupby("series").cumcount()
@@ -173,6 +187,8 @@ df = df.sort_values("FECHA")
 # df.index.name = "FECHA"
 # df = df.reset_index()
 # df = df.fillna(method='ffill').fillna(method='bfill')
+
+
 
 
 
