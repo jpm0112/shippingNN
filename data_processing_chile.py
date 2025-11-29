@@ -1,4 +1,4 @@
-df['coast'] = df['PUERTO DE EMBARQUE'].map(grouped_coasts)
+
 import pandas as pd
 import glob
 import os
@@ -499,6 +499,8 @@ grouped_coasts = {
     'CABO NEGRO': 'SAW',
 }
 
+df['coast'] = df['PUERTO DE EMBARQUE'].map(grouped_coasts)
+
 # Calcular frecuencias y porcentajes
 frecuencias = df['PUERTO DE EMBARQUE'].value_counts(normalize=True)
 menos_frecuentes = frecuencias[frecuencias < 0.050].index
@@ -515,7 +517,7 @@ df['PUERTO DE DESEMBARQUE'] = df['PUERTO DE DESEMBARQUE'].replace(menos_frecuent
 
 df = df[df["PAIS DE ORIGEN"] != "ORIGEN O DESTINO NO PRECISADO"]
 frecuencias = df['PAIS DE ORIGEN'].value_counts(normalize=True)
-menos_frecuentes = frecuencias[frecuencias < 0.005].index
+menos_frecuentes = frecuencias[frecuencias < 0.01].index
 df['PAIS DE ORIGEN'] = df['PAIS DE ORIGEN'].replace(menos_frecuentes, 'other_countries')
 
 frecuencias = df['CLAUSULA'].value_counts(normalize=True)
@@ -690,13 +692,13 @@ def pivot_and_merge(main_df, series_df, group_col, value_col, agg_func='sum'):
 weekly_df = pivot_and_merge(weekly_df, df, 'ADUANA', 'TEU')
 weekly_df = pivot_and_merge(weekly_df, df, 'PAIS DE ORIGEN', 'TEU')
 weekly_df = pivot_and_merge(weekly_df, df, 'PAIS DE ORIGEN', 'FLETE_per_TEU', agg_func='mean')
-weekly_df = pivot_and_merge(weekly_df, df, 'PUERTO DE EMBARQUE', 'TEU')
+# weekly_df = pivot_and_merge(weekly_df, df, 'PUERTO DE EMBARQUE', 'TEU')
 weekly_df = pivot_and_merge(weekly_df, df, 'PUERTO DE DESEMBARQUE', 'TEU')
 weekly_df = pivot_and_merge(weekly_df, df, 'COMPANIA DE TRANSPORTE', 'TEU')
 weekly_df = pivot_and_merge(weekly_df, df, 'COMPANIA DE TRANSPORTE', 'FLETE_per_TEU', agg_func='mean')
 weekly_df = pivot_and_merge(weekly_df, df, 'CLAUSULA', 'TEU')
 weekly_df = pivot_and_merge(weekly_df, df, 'TIPO DE BULTO', 'TEU')
-weekly_df = pivot_and_merge(weekly_df, df, 'coast', 'TEU')
+# weekly_df = pivot_and_merge(weekly_df, df, 'coast', 'TEU')
 weekly_df = pivot_and_merge(weekly_df, df, 'coast', 'FLETE_per_TEU', agg_func='mean')
 
 
@@ -717,18 +719,23 @@ for filename in os.listdir(folder):
             df_macro['FECHA'] = pd.to_datetime(df_macro['Date'], errors='coerce')
             df_macro = df_macro.sort_values('FECHA').drop(columns=['Date'])
             df_macro[['Close', 'Volume']] = df_macro[['Close', 'Volume']].fillna(method='ffill').fillna(method='bfill')
-            df_macro['Close_pct_change'] = df_macro['Close'].pct_change().fillna(0)
+            # df_macro['Close_pct_change'] = df_macro['Close'].pct_change().fillna(0)
 
 
             if 'Close' in df_macro.columns and 'Volume' in df_macro.columns:
                 df_macro[['Close', 'Volume']] = df_macro[['Close', 'Volume']].fillna(method='ffill')
 
                 name = filename.replace('.csv', '').lower()  # e.g. 'data_gold'
-                macro_filtered = df_macro[['FECHA', 'Close', 'Volume', 'Close_pct_change']].rename(
+                # macro_filtered = df_macro[['FECHA', 'Close', 'Volume', 'Close_pct_change']].rename(
+                #     columns={
+                #         'Close': f'{name}_price',
+                #         'Volume': f'{name}_volume',
+                #         'Close_pct_change': f'{name}_pct_change'
+                #     })
+                macro_filtered = df_macro[['FECHA', 'Close', 'Volume']].rename(
                     columns={
                         'Close': f'{name}_price',
-                        'Volume': f'{name}_volume',
-                        'Close_pct_change': f'{name}_pct_change'
+                        'Volume': f'{name}_volume'
                     })
                 macro_filtered["WEEK"] = macro_filtered["FECHA"].dt.to_period("W").dt.start_time
                 weekly_macro_df = macro_filtered.groupby("WEEK", as_index=False).agg({
@@ -737,8 +744,8 @@ for filename in os.listdir(folder):
                     f'{name}_volume': 'sum',
                 })
 
-                col = f"{name}_weekly_pct_change"
-                weekly_macro_df[col] = weekly_macro_df[f"{name}_price"].pct_change()
+                # col = f"{name}_weekly_pct_change"
+                # weekly_macro_df[col] = weekly_macro_df[f"{name}_price"].pct_change()
                 weekly_macro_df = weekly_macro_df.drop(columns=['FECHA'])
 
 
@@ -748,6 +755,8 @@ for filename in os.listdir(folder):
 new_columns = [col for col in weekly_df.columns if col not in original_columns]
 weekly_df[new_columns] = weekly_df[new_columns].fillna(method='ffill').fillna(method='bfill')
 
+
+weekly_df = weekly_df.drop["PESO BRUTO TOTAL", "FOB TOTAL", "FLETE TOTAL", "SEGURO TOTAL"]
 weekly_df.to_csv("chile_data.csv", index=False)
 
 
