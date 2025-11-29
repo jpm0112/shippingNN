@@ -515,7 +515,7 @@ df['PUERTO DE DESEMBARQUE'] = df['PUERTO DE DESEMBARQUE'].replace(menos_frecuent
 
 df = df[df["PAIS DE ORIGEN"] != "ORIGEN O DESTINO NO PRECISADO"]
 frecuencias = df['PAIS DE ORIGEN'].value_counts(normalize=True)
-menos_frecuentes = frecuencias[frecuencias < 0.05].index
+menos_frecuentes = frecuencias[frecuencias < 0.01].index
 df['PAIS DE ORIGEN'] = df['PAIS DE ORIGEN'].replace(menos_frecuentes, 'other_countries')
 
 frecuencias = df['CLAUSULA'].value_counts(normalize=True)
@@ -588,7 +588,7 @@ df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].astype(str).apply(re
 # Calcular frecuencias y porcentajes
 frecuencias = df['COMPANIA DE TRANSPORTE'].value_counts(normalize=True)
 # Identificar los que representan menos del 0.5%
-menos_frecuentes = frecuencias[frecuencias < 0.005].index
+menos_frecuentes = frecuencias[frecuencias < 0.05].index
 # create the other_countries category
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace(menos_frecuentes, 'other_companies')
 df['COMPANIA DE TRANSPORTE'] = df['COMPANIA DE TRANSPORTE'].replace('NO EXISTE', 'other_companies')
