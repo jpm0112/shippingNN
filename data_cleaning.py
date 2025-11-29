@@ -133,7 +133,7 @@ df_without_targets = df_without_targets.drop(columns=cols_to_drop_temp)
 
 
 # to print the pairs of highly correlated features
-threshold = 0.85
+threshold = 0.80
 corr = df_without_targets.corr().abs()
 pairs = []
 for i in range(len(corr.columns)):
