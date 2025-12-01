@@ -111,7 +111,7 @@ iteration_counter = 0
 import pandas as pd
 
 # Load combinations
-param_grid = pd.read_csv("easy_name.csv")
+param_grid = pd.read_csv("factor_table_values.csv")
 
 total = len(param_grid)*len(window_sizes)*len(test_sizes)*len(seeds)
 

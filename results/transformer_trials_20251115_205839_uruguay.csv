@@ -1,0 +1,2 @@
+trial_index,window_size,batch_size,d_model,n_head,num_layers,epoch_number,lr,mae,mape,mse,rmse,r2,runtime_s,started_at
+0,42,64,512,16,2,1023,0.001255316604683103,nan,nan,nan,nan,nan,43.493206,2025-11-15T20:58:39
