@@ -1698,5 +1698,5 @@ def run_darts_tft_with_for(df,
     print(mape_values)
     mean_epochs = np.mean(n_epochs_values)  # dummy values for errors
     return (np.mean(mae_values), np.mean(mape_values), np.mean(mse_values),
-            np.mean(rmse_values), np.mean(r2_values), mean_epochs)
+            np.mean(rmse_values), np.mean(r2_values), mean_epochs, np.std(mape_values))
 
