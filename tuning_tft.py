@@ -51,6 +51,7 @@ csv_writer = csv.DictWriter(csv_file, fieldnames=[
     "epochs",
     "grad_clip",
     "mae", "mape", "mse", "rmse", "r2",
+    "sd"
     "runtime_s",
     "started_at",
     "epochs_ran",
@@ -64,7 +65,7 @@ ax = AxClient()
 ax.create_experiment(
     name="tft_experiment",
     parameters=[
-        {"name": "test_size", "type": "choice", "values": [12,26,52], "value_type": "int"},
+        {"name": "test_size", "type": "choice", "values": [12], "value_type": "int"},
         {"name": "window_size", "type": "range", "bounds": [26,52], "value_type": "int"},
         {"name": "hidden_size", "type": "choice", "values": [32, 64, 128, 256], "value_type": "int"},
         {"name": "lstm_layers", "type": "range", "bounds": [1, 4], "value_type": "int"},
@@ -81,7 +82,7 @@ ax.create_experiment(
 # ============================================================
 #  BAYES OPT LOOP
 # ============================================================
-iterations = 200
+iterations = 100
 
 for i in range(iterations):
     print(f"\n=== Trial {i + 1}/{iterations} ===")
@@ -120,7 +121,7 @@ for i in range(iterations):
         # # Metrics
         # mae, mape, mse, rmse, r2 = error_metrics(true_vals, pred_vals)
 
-        mae, mape, mse, rmse, r2, epochs_ran = run_darts_tft_with_for(
+        mae, mape, mse, rmse, r2, epochs_ran, sd = run_darts_tft_with_for(
             df=tmp,
             target_col=target_col,
             test_size=int(params["test_size"]),
@@ -158,7 +159,7 @@ for i in range(iterations):
             "lr": params["lr"],
             "epochs": params["epochs"],
             "grad_clip": params["grad_clip"],
-            "mae": mae, "mape": mape, "mse": mse, "rmse": rmse, "r2": r2,
+            "mae": mae, "mape": mape, "mse": mse, "rmse": rmse, "r2": r2,"sd":sd,
             "runtime_s": runtime_s,
             "started_at": started_at.isoformat(timespec="seconds"),
             "epochs_ran": epochs_ran,
