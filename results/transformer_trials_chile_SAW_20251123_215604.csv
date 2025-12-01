@@ -1,0 +1,1 @@
+trial_index,test_size,window_size,batch_size,d_model,n_head,num_layers,epoch_number,lr,mae,mape,mse,rmse,r2,runtime_s,started_at,effective_epochs

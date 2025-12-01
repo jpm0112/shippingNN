@@ -1,0 +1,2 @@
+trial_index,test_size,window_size,batch_size,d_model,n_head,num_layers,epoch_number,lr,mae,mape,mse,rmse,r2,runtime_s,started_at,effective_epochs
+0,16,48,64,512,32,8,1024,0.0029028686453336137,549.0828044400038,26.047437508735282,371985.9741373285,609.9065290168064,-6.24046329056327e-07,25.005087,2025-11-23T03:32:11,109
