@@ -57,7 +57,7 @@ for target_col in target_cols:
         "epochs",
         "grad_clip",
         "mae", "mape", "mse", "rmse", "r2",
-        "sd"
+        "sd",
         "runtime_s",
         "started_at",
         "epochs_ran",
