@@ -801,8 +801,10 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
 
     # ===== Split train/test =====
-    train_df = df[:-test_size]
-    test_df = df[-(test_size + window_size):]
+    horizon = test_size
+    val_size = test_size
+    train_df = df[:-horizon]
+    test_df = df[-horizon:]
 
     # ===== Manual scaling =====
     train_features = train_df[feature_cols].values
@@ -815,35 +817,31 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     scaled_train = (train_features - min_vals) / (max_vals - min_vals + 1e-8)
     scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
 
-    # Train windows
-    X_train, y_train = [], []
-    for i in range(len(train_df) - window_size):
-        X_train.append(scaled_train[i:i + window_size])
-        y_train.append(scaled_target[i + window_size])
+    # Make val windows
+    split_idx = len(train_df) - val_size
+    X_tr, y_tr = [], []
+    for i in range(0, split_idx - window_size - horizon + 1):
+        X_tr.append(scaled_train[i:i+window_size])
+        y_tr.append(scaled_target[i+window_size:i+window_size+horizon])
 
-    X_train = np.array(X_train)
-    y_train = np.array(y_train)
+    X_va, y_va = [], []
+    # allow input window to reach slightly before split_idx, but targets must be in val region
+    for i in range(split_idx - window_size, len(train_df) - window_size - horizon + 1):
+        X_va.append(scaled_train[i:i+window_size])
+        y_va.append(scaled_target[i+window_size:i+window_size+horizon])
 
-    # ===== Test prep =====
-    test_features = test_df[feature_cols].values
-    test_target = test_df[target_col].values
-    scaled_test = (test_features - min_vals) / (max_vals - min_vals + 1e-8)
-    scaled_test_target = (test_target - target_min) / (target_max - target_min + 1e-8)
+    X_tr, y_tr = np.array(X_tr), np.array(y_tr)
+    X_va, y_va = np.array(X_va), np.array(y_va)
 
-    X_test, y_test = [], []
-    for i in range(test_size):
-        X_test.append(scaled_test[i:i + window_size])
-        y_test.append(scaled_test_target[i + window_size])
+    train_loader = DataLoader(TensorDataset(
+        torch.tensor(X_tr, dtype=torch.float32),
+        torch.tensor(y_tr, dtype=torch.float32)
+    ), batch_size=batch_size, shuffle=True)
 
-    X_test = np.array(X_test)
-    y_test = np.array(y_test)
-
-    # ===== Tensors & DataLoader =====
-    X_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
-    y_tensor = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1).to(device)
-
-    dataset = TensorDataset(X_tensor, y_tensor)
-    dataloader = DataLoader(dataset, batch_size, shuffle=False)
+    val_loader = DataLoader(TensorDataset(
+        torch.tensor(X_va, dtype=torch.float32),
+        torch.tensor(y_va, dtype=torch.float32)
+    ), batch_size=batch_size, shuffle=False)
 
     # ===== Model =====
     class TransformerForecast(nn.Module):
@@ -862,7 +860,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
                 batch_first=True
             )
             self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-            self.fc = nn.Linear(d_model, 1)
+            self.fc = nn.Linear(d_model, horizon)
 
         def forward(self, x):
             x = self.input_linear(x)  # (B, T, D)
@@ -871,7 +869,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
             out = x[:, -1, :]
             return self.fc(out)
 
-    model = TransformerForecast(input_size=X_train.shape[2]).to(device)
+    model = TransformerForecast(input_size=X_tr.shape[2]).to(device)
 
     criterion = nn.MSELoss()
     if optimizer_type == 'adam':
@@ -883,18 +881,22 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     if optimizer_type == 'Adagrad':
         optimizer = torch.optim.Adagrad(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-    # ===== Early stopping state =====
-    best_loss = float("inf")
+    import copy
+
+    best_val_loss = float("inf")
+    best_state = None
     epochs_no_improve = 0
-    epochs_run = 0
 
     # ===== Training =====
     for epoch in range(epoch_number):
+        # ---- train epoch ----
         model.train()
         running_loss = 0.0
         n_samples = 0
 
-        for batch_X, batch_y in dataloader:
+        for batch_X, batch_y in train_loader:        # <- use train_loader
+            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
+
             optimizer.zero_grad()
             output = model(batch_X)
             loss = criterion(output, batch_y)
@@ -905,35 +907,62 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
             running_loss += loss.item() * bs_actual
             n_samples += bs_actual
 
-        epoch_loss = running_loss / max(n_samples, 1)
-        epochs_run = epoch + 1  # record how many epochs we have completed
+        train_loss = running_loss / max(n_samples, 1)
+        epochs_run = epoch + 1
+
+        # ---- validation epoch (THIS GOES HERE) ----
+        model.eval()
+        val_running = 0.0
+        val_samples = 0
+        with torch.no_grad():
+            for val_X, val_y in val_loader:          # <- use val_loader
+                val_X, val_y = val_X.to(device), val_y.to(device)
+                val_out = model(val_X)
+                vloss = criterion(val_out, val_y)
+
+                bs = val_X.size(0)
+                val_running += vloss.item() * bs
+                val_samples += bs
+
+        val_loss = val_running / max(val_samples, 1)
 
         if (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch + 1}, Loss: {epoch_loss:.4f}")
+            print(f"Epoch {epoch+1}, train_loss: {train_loss:.4f}, val_loss: {val_loss:.4f}")
 
-        # --- convergence termination ---
+        # ---- early stopping using VAL loss (THIS GOES HERE) ----
         if early_stop:
-            if best_loss - epoch_loss > min_delta:
-                best_loss = epoch_loss
+            if best_val_loss - val_loss > min_delta:
+                best_val_loss = val_loss
+                best_state = copy.deepcopy(model.state_dict())
                 epochs_no_improve = 0
             else:
                 epochs_no_improve += 1
 
             if epochs_no_improve >= patience:
-                print(f"Early stopping at epoch {epoch + 1} (best_loss={best_loss:.4f})")
+                print(f"Early stopping at epoch {epoch+1} (best_val_loss={best_val_loss:.4f})")
                 break
 
-    # ===== Evaluation =====
-    X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
+    # Restore best weights BEFORE final evaluation
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    # ===== Evaluation (true 24-ahead from ONE cutoff) =====
+    X0 = scaled_train[-window_size:]  # (window_size, n_features)
+
+    X0_tensor = torch.tensor(X0, dtype=torch.float32).unsqueeze(0).to(device)
     model.eval()
     with torch.no_grad():
-        preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
+        preds_scaled = model(X0_tensor).squeeze(0).cpu().numpy()  # (horizon,)
 
     preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
-    real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
+    real  = test_df[target_col].values  # (horizon,)
 
-    # Added epochs_run to the returned info
-    return real, preds, [model, X_test, X_train, feature_cols, epochs_run]
+    # ---- compatibility outputs ----
+    X_test_compat  = np.repeat(X0[np.newaxis, :, :], horizon, axis=0)  # (horizon, window_size, n_features)
+    X_train_compat = X_tr                                           # (N_train_windows, window_size, n_features)
+
+    return real, preds, [model, X_test_compat, X_train_compat, feature_cols, epochs_run]
+
 
 def run_lstm2(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed, patience, min_delta):
 
@@ -1039,7 +1068,6 @@ def run_lstm2(df, target_col, window_size, test_size, batch_size, hidden_size, n
 def run_lstm(df, target_col, window_size, test_size, batch_size,
              hidden_size, num_layers, epoch_number, lr,
              device, seed, patience, min_delta):
-    import copy
 
     seed_everything(seed)
     np.random.seed(seed)
@@ -1052,9 +1080,11 @@ def run_lstm(df, target_col, window_size, test_size, batch_size,
 
     feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
 
+    horizon = test_size  # Direct multi-horizon prediction
+
     # Split train/test
     train_df = df[:-test_size]
-    test_df = df[-(test_size + window_size):]
+    test_df = df[-test_size:]
 
     # Escalamiento manual (solo con train)
     train_features = train_df[feature_cols].values
@@ -1069,10 +1099,11 @@ def run_lstm(df, target_col, window_size, test_size, batch_size,
     scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
 
     # Crear ventanas para entrenamiento (train + val)
+    # Each sample predicts the next `horizon` values directly
     X_all, y_all = [], []
-    for i in range(len(train_df) - window_size):
+    for i in range(len(train_df) - window_size - horizon + 1):
         X_all.append(scaled_train[i:i + window_size])
-        y_all.append(scaled_target[i + window_size])
+        y_all.append(scaled_target[i + window_size:i + window_size + horizon])
 
     X_all = np.array(X_all)
     y_all = np.array(y_all)
@@ -1088,25 +1119,21 @@ def run_lstm(df, target_col, window_size, test_size, batch_size,
     y_val = y_all[train_size:]
 
     # Preparar test (misma escala)
-    test_features = test_df[feature_cols].values
+    # Use last window_size rows of train as input to predict all test_size values
+    test_input_features = train_df[feature_cols].values[-window_size:]
+    scaled_test_input = (test_input_features - min_vals) / (max_vals - min_vals + 1e-8)
+
+    X_test = np.array([scaled_test_input])  # Shape: (1, window_size, n_features)
+
+    # Ground truth for test
     test_target = test_df[target_col].values
-
-    scaled_test = (test_features - min_vals) / (max_vals - min_vals + 1e-8)
-    scaled_test_target = (test_target - target_min) / (target_max - target_min + 1e-8)
-
-    X_test, y_test = [], []
-    for i in range(test_size):
-        X_test.append(scaled_test[i:i + window_size])
-        y_test.append(scaled_test_target[i + window_size])
-
-    X_test = np.array(X_test)
-    y_test = np.array(y_test)
+    y_test = (test_target - target_min) / (target_max - target_min + 1e-8)
 
     # Tensores
     X_train_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
-    y_train_tensor = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1).to(device)
+    y_train_tensor = torch.tensor(y_train, dtype=torch.float32).to(device)
     X_val_tensor = torch.tensor(X_val, dtype=torch.float32).to(device)
-    y_val_tensor = torch.tensor(y_val, dtype=torch.float32).unsqueeze(1).to(device)
+    y_val_tensor = torch.tensor(y_val, dtype=torch.float32).to(device)
 
     X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
 
@@ -1114,9 +1141,9 @@ def run_lstm(df, target_col, window_size, test_size, batch_size,
     dataset = TensorDataset(X_train_tensor, y_train_tensor)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
-    # LSTM model
+    # LSTM model with multi-horizon output
     class LSTMForecast(nn.Module):
-        def __init__(self, input_size, hidden_size=hidden_size, num_layers=num_layers):
+        def __init__(self, input_size, hidden_size=hidden_size, num_layers=num_layers, output_size=horizon):
             super(LSTMForecast, self).__init__()
             self.lstm = nn.LSTM(
                 input_size,
@@ -1125,7 +1152,7 @@ def run_lstm(df, target_col, window_size, test_size, batch_size,
                 batch_first=True,
                 dropout=0.3 if num_layers > 1 else 0.0
             )
-            self.fc = nn.Linear(hidden_size, 1)
+            self.fc = nn.Linear(hidden_size, output_size)
 
         def forward(self, x):
             out, _ = self.lstm(x)
@@ -1195,8 +1222,8 @@ def run_lstm(df, target_col, window_size, test_size, batch_size,
     with torch.no_grad():
         preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
 
-    preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
-    real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
+    preds = preds_scaled * (target_max - target_min) + target_min
+    real = y_test * (target_max - target_min) + target_min
 
     # "scalers"
     scaler_cov = {"min": min_vals, "max": max_vals}
@@ -1699,4 +1726,3 @@ def run_darts_tft_with_for(df,
     mean_epochs = np.mean(n_epochs_values)  # dummy values for errors
     return (np.mean(mae_values), np.mean(mape_values), np.mean(mse_values),
             np.mean(rmse_values), np.mean(r2_values), mean_epochs, np.std(mape_values))
-
