@@ -8,7 +8,7 @@ from ax.service.ax_client import AxClient
 from ax.service.utils.instantiation import ObjectiveProperties
 from datetime import datetime
 from pathlib import Path
-from functions import run_darts_tft, error_metrics, run_darts_tft_with_for
+from functions import run_darts_tft, error_metrics, run_darts_tft_with_for, clean_gpu
 
 # ============================================================
 #  LOAD DATA
@@ -95,6 +95,7 @@ for target_col in target_cols:
         params, trial_index = ax.get_next_trial()
         started_at = datetime.now()
 
+        clean_gpu()
         # Seed for reproducibility
 
         try:
