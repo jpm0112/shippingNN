@@ -1,5 +1,5 @@
 import numpy as np
-import torch
+import torch, gc
 from lightning.pytorch import Trainer, seed_everything
 from pytorch_forecasting import TimeSeriesDataSet, TemporalFusionTransformer
 from pytorch_forecasting.metrics import MAE, QuantileLoss, SMAPE
