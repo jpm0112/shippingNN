@@ -2,7 +2,7 @@ import warnings
 warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
-import torch, csv
+import torch, csv, gc
 from lightning import seed_everything
 from ax.service.ax_client import AxClient
 from ax.service.utils.instantiation import ObjectiveProperties
@@ -21,7 +21,8 @@ df = pd.read_csv("weekly_chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"])
 df = df.sort_values("FECHA")
 
-target_cols = ["FE", "NAE","NAW","NE","SE","SAW","SAE"]
+target_cols = ["FE", "NAE","NAW","NE","SE","SAW","SAE"] #I can rerun NAE as it crashed at 97 iterations
+target_cols = ["NAW","NE","SE","SAW","SAE"]
 for target_col in target_cols:
 
 
