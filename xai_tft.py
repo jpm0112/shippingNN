@@ -42,7 +42,7 @@ if deleted_sample > 0:
         tmp = tmp.iloc[:-deleted_sample]
 
 
-y_true, y_pred, model_list = run_darts_tft(tmp,target_col,test_size,window_size,hidden_size,lstm_layers,num_attention_heads,dropout,
+y_true, y_pred, out = run_darts_tft(tmp,target_col,test_size,window_size,hidden_size,lstm_layers,num_attention_heads,dropout,
         batch_size,n_epochs,lr,grad_clip,patience=patience,min_delta=min_delta,seed=seed)
 mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
 runtime = (datetime.now() - start).total_seconds()
@@ -52,12 +52,12 @@ print(f"MAE={mae:.3f}, MAPE={mape:.3f}, RMSE={rmse:.3f}, R2={r2:.3f}, Time={runt
 print(y_true)
 print(y_pred)
 
-out_list = [model, train, val, scaler_y, scaler_cov, epochs_ran]
+out_list = [model, train, val, scaler_y, scaler_cov, epochs_ran, feature_cols]
 
-model = model_list[0]
-X_test = model_list[1]
-X_train = model_list[2]
-feature_names = model_list[3]
+model = out[0]
+X_train = out[1]
+X_test = out[2]
+feature_names = model_list[6]
 
 plt.figure(figsize=(12, 6))
 plt.plot(y_true, marker="o", label="Real")
