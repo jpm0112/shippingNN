@@ -1565,6 +1565,7 @@ def run_darts_tft(df,
         value_cols=target_col,
     )
 
+
     # ---- 1b. Build past covariates from all other columns ----
     feature_cols = [c for c in df.columns if c not in ["FECHA", target_col]]
     past_cov = TimeSeries.from_dataframe(
@@ -1660,7 +1661,7 @@ def run_darts_tft(df,
 
     true_vals = val_last.values().flatten().tolist()
     pred_vals = pred.values().flatten().tolist()
-    out_list = [model, train, val, scaler_y, scaler_cov, epochs_ran]
+    out_list = [model, train, val, scaler_y, scaler_cov, epochs_ran, feature_cols]
 
     return true_vals, pred_vals, out_list
 
