@@ -15,18 +15,18 @@ df = df.sort_values("FECHA").reset_index(drop=True)
 
 
 
-target_col = "FE"
+target_col = "NE"
 
 test_size = 12 # number of weeks to forecast
-window_size = 52
-hidden_size = 256
+window_size = 26
+hidden_size = 64
 lstm_layers = 1
-num_attention_heads = 4
-dropout = 0.412859964370727
+num_attention_heads = 1
+dropout = 0.184845678
 batch_size = 32
-lr = 0.000595802
+lr = 0.000323253143048712
 n_epochs = 2000
-grad_clip = 1.0
+grad_clip = 3
 
 
 patience = 100
