@@ -22,7 +22,7 @@ df["FECHA"] = pd.to_datetime(df["FECHA"])
 df = df.sort_values("FECHA")
 
 target_cols = ["FE", "NAE","NAW","NE","SE","SAW","SAE"] #I can rerun NAE as it crashed at 97 iterations
-target_cols = ["NAW","NE","SE","SAW","SAE"]
+target_cols = ["SAE","NAE"]
 for target_col in target_cols:
 
 
