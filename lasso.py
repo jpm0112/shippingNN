@@ -11,10 +11,14 @@ df = pd.read_csv("weekly_chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"] )
 df = df.sort_values("FECHA")
 
+
 # Parameters
 target_col = "FE"
-test_size =24
-n_lags = 48  # number of past values used as features
+test_size = 24 # number of weeks to forecast
+window_size = 52
+n_lags = window_size  # number of past values used as features
+
+
 
 # Build lagged features for target and other variables
 lagged_cols = []
@@ -91,18 +95,18 @@ plt.tight_layout()
 
 
 y_test_real = scaler_y.inverse_transform(y_test.reshape(-1, 1)).ravel()
-y_pred_real = scaler_y.inverse_transform(preds_scaled.reshape(-1, 1)).ravel()
+y_pred_real_lasso = scaler_y.inverse_transform(preds_scaled.reshape(-1, 1)).ravel()
 
-mae, mape, mse, rmse, r2 = error_metrics(y_test_real, y_pred_real)
+mae, mape, mse, rmse, r2 = error_metrics(y_test_real, y_pred_real_lasso)
 
 # Plot
 plt.figure(figsize=(12, 6))
 plt.plot(y_test_real, marker="o", label="Real")
-plt.plot(y_pred_real, marker="o", label="Prediction")
+plt.plot(y_pred_real_lasso, marker="o", label="Prediction")
 plt.title("Prediction (original scale)")
 plt.xlabel("Weeks")
 plt.ylabel(target_col)
 plt.legend()
 plt.grid(True, linestyle="--", linewidth=0.5)
 plt.tight_layout()
-plt.savefig("plots/z_lasso_prediction.png", dpi=200)
+plt.savefig(f"plots/lasso_prediction_{target_col}.png", dpi=200)
