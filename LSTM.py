@@ -29,7 +29,7 @@ df["FECHA"] = pd.to_datetime(df["FECHA"])
 df = df.sort_values('FECHA')
 
 # Parámetros
-target_col = 'FE'
+target_col = 'NE'
 
 
 # good parameters for container prediction
@@ -57,4 +57,4 @@ plt.ylabel(target_col)
 plt.legend()
 plt.grid(True, linestyle="--", linewidth=0.5)
 plt.tight_layout()
-plt.savefig("plots/z_lstm_prediction.png", dpi=200)
+plt.savefig("plots/lstm_prediction.png", dpi=200)
