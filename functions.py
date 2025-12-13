@@ -668,126 +668,7 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
 
 
 
-def run_transformer2(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr,
-                    device, seed, optimizer_type='adam',weight_decay=1e-4):
-
-    seed_everything(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    # device = select_device(device if isinstance(device, str) else None)
-    print(f"Using device: {device_info(device)}")
-    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
-
-    # Split train/test
-    train_df = df[:-test_size]
-    test_df = df[-(test_size + window_size):]
-
-    # Escalamiento manual
-    train_features = train_df[feature_cols].values
-    train_target = train_df[target_col].values
-    min_vals = train_features.min(axis=0)
-    max_vals = train_features.max(axis=0)
-    target_min = train_target.min()
-    target_max = train_target.max()
-
-    scaled_train = (train_features - min_vals) / (max_vals - min_vals + 1e-8)
-    scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
-
-    # Crear ventanas para entrenamiento
-    X_train, y_train = [], []
-    for i in range(len(train_df) - window_size):
-        X_train.append(scaled_train[i:i + window_size])
-        y_train.append(scaled_target[i + window_size])
-
-    X_train = np.array(X_train)
-    y_train = np.array(y_train)
-
-    # Preparar test
-    test_features = test_df[feature_cols].values
-    test_target = test_df[target_col].values
-    scaled_test = (test_features - min_vals) / (max_vals - min_vals + 1e-8)
-    scaled_test_target = (test_target - target_min) / (target_max - target_min + 1e-8)
-
-    X_test, y_test = [], []
-    for i in range(test_size):
-        X_test.append(scaled_test[i:i + window_size])
-        y_test.append(scaled_test_target[i + window_size])
-
-    X_test = np.array(X_test)
-    y_test = np.array(y_test)
-
-    # Tensores
-    X_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
-    y_tensor = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1).to(device)
-
-    # DataLoader
-    dataset = TensorDataset(X_tensor, y_tensor)
-    dataloader = DataLoader(dataset, batch_size, shuffle=False)
-
-    # Transformer model
-
-    class TransformerForecast(nn.Module):
-        def __init__(self, input_size, d_model=d_model, nhead=n_head, num_layers=num_layers, max_len=window_size):
-            super().__init__()
-            self.input_linear = nn.Linear(input_size, d_model)
-
-            # learned positional encodings
-            self.positional_encoding = nn.Parameter(torch.zeros(1, max_len, d_model))
-            nn.init.normal_(self.positional_encoding, std=0.02)
-
-            # single (clean) definition
-            encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_head, batch_first=True)
-            self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-            self.fc = nn.Linear(d_model, 1)
-
-        def forward(self, x):
-            x = self.input_linear(x)  # (B, T, D)
-            # >>> add positions <<<
-            x = x + self.positional_encoding[:, :x.size(1), :]
-            x = self.transformer(x)
-            out = x[:, -1, :]
-            return self.fc(out)
-
-    model = TransformerForecast(input_size=X_train.shape[2]).to(device)
-
-    criterion = nn.MSELoss()
-    if optimizer_type == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=weight_decay)
-    if optimizer_type == 'adamw':
-        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-    if optimizer_type == 'sgd':
-        optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=0.9)
-    if optimizer_type == 'Adagrad':
-        optimizer = torch.optim.Adagrad(model.parameters(), lr=lr, weight_decay=weight_decay)
-
-
-    # Entrenamiento
-    for epoch in range(epoch_number):
-        for batch_X, batch_y in dataloader:
-            optimizer.zero_grad()
-            output = model(batch_X)
-            loss = criterion(output, batch_y)
-            loss.backward()
-            optimizer.step()
-        if (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch + 1}, Loss: {loss.item():.4f}")
-
-    # Evaluación
-    X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
-    model.eval()
-    with torch.no_grad():
-        preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
-
-    preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
-    real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
-
-    return real, preds, [model, X_test, X_train, feature_cols]
-
-
-def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr,
+def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, dropout,
                     device, seed, optimizer_type='adam', weight_decay=1e-4, early_stop=True, patience=200, min_delta=1e-5):
 
     seed_everything(seed)
@@ -818,17 +699,38 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
 
     # Make val windows
+    # Make train/val windows with DISJOINT target regions
     split_idx = len(train_df) - val_size
-    X_tr, y_tr = [], []
-    for i in range(0, split_idx - window_size - horizon + 1):
-        X_tr.append(scaled_train[i:i+window_size])
-        y_tr.append(scaled_target[i+window_size:i+window_size+horizon])
 
-    X_va, y_va = [], []
-    # allow input window to reach slightly before split_idx, but targets must be in val region
-    for i in range(split_idx - window_size, len(train_df) - window_size - horizon + 1):
-        X_va.append(scaled_train[i:i+window_size])
-        y_va.append(scaled_target[i+window_size:i+window_size+horizon])
+    X_tr, y_tr, X_va, y_va = [], [], [], []
+
+    for i in range(0, len(train_df) - window_size - horizon + 1):
+        x_start = i
+        x_end = i + window_size
+        y_start = x_end
+        y_end = y_start + horizon
+
+        x_win = scaled_train[x_start:x_end]
+        y_win = scaled_target[y_start:y_end]
+
+        # train: targets fully BEFORE split_idx
+        if y_end <= split_idx:
+            X_tr.append(x_win)
+            y_tr.append(y_win)
+
+        # val: targets start AT/AFTER split_idx (fully in val block)
+        elif y_start >= split_idx:
+            X_va.append(x_win)
+            y_va.append(y_win)
+
+    X_tr, y_tr = np.array(X_tr), np.array(y_tr)
+    X_va, y_va = np.array(X_va), np.array(y_va)
+
+    if len(X_tr) == 0 or len(X_va) == 0:
+        raise ValueError(
+            f"Not enough data to build windows: got X_tr={len(X_tr)}, X_va={len(X_va)}. "
+            f"Try smaller window_size/horizon or larger dataset."
+        )
 
     X_tr, y_tr = np.array(X_tr), np.array(y_tr)
     X_va, y_va = np.array(X_va), np.array(y_va)
@@ -857,6 +759,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
             encoder_layer = nn.TransformerEncoderLayer(
                 d_model=d_model,
                 nhead=n_head,
+                dropout=dropout,
                 batch_first=True
             )
             self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
@@ -873,7 +776,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
 
     criterion = nn.MSELoss()
     if optimizer_type == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=weight_decay)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     if optimizer_type == 'adamw':
         optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     if optimizer_type == 'sgd':
@@ -886,7 +789,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     best_val_loss = float("inf")
     best_state = None
     epochs_no_improve = 0
-
+    epochs_run = 0
     # ===== Training =====
     for epoch in range(epoch_number):
         # ---- train epoch ----
@@ -964,105 +867,76 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     return real, preds, [model, X_test_compat, X_train_compat, feature_cols, epochs_run]
 
 
-def run_lstm2(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed, patience, min_delta):
+def run_transformer_with_for(df,
+                             target_col,
+                             window_size,
+                             test_size,
+                             batch_size,
+                             d_model,
+                             n_head,
+                             num_layers,
+                             epoch_number,
+                             lr,
+                             dropout,
+                             device,
+                             seed,
+                             optimizer_type="adam",
+                             weight_decay=1e-4,
+                             early_stop=True,
+                             patience=200,
+                             min_delta=1e-5,
+                             n_runs=3):
+    mae_values, mape_values, mse_values, rmse_values, r2_values = [], [], [], [], []
+    n_epochs_values = []
 
+    for i in range(n_runs):
+        tmp = df.copy().sort_values("FECHA")
 
-    seed_everything(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    # device = select_device(device if isinstance(device, str) else None)
-    print(f"Using device: {device_info(device)}")
-    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
-    # Split train/test
-    train_df = df[:-test_size]
-    test_df = df[-(test_size + window_size):]
+        deleted_sample = test_size * (i + 1)  # move cutoff back each run
+        if deleted_sample > 0:
+            tmp = tmp.iloc[:-deleted_sample]
 
-    # Escalamiento manual
-    train_features = train_df[feature_cols].values
-    train_target = train_df[target_col].values
-    min_vals = train_features.min(axis=0)
-    max_vals = train_features.max(axis=0)
-    target_min = train_target.min()
-    target_max = train_target.max()
+        y_true, y_pred, out = run_transformer(
+            df=tmp,
+            target_col=target_col,
+            window_size=window_size,
+            test_size=test_size,
+            batch_size=batch_size,
+            d_model=d_model,
+            n_head=n_head,
+            num_layers=num_layers,
+            epoch_number=epoch_number,
+            lr=lr,
+            dropout=dropout,
+            device=device,
+            seed=seed,
+            optimizer_type=optimizer_type,
+            weight_decay=weight_decay,
+            early_stop=early_stop,
+            patience=patience,
+            min_delta=min_delta,
+        )
 
-    scaled_train = (train_features - min_vals) / (max_vals - min_vals + 1e-8)
-    scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
+        mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
 
-    # Crear ventanas para entrenamiento
-    X_train, y_train = [], []
-    for i in range(len(train_df) - window_size):
-        X_train.append(scaled_train[i:i + window_size])
-        y_train.append(scaled_target[i + window_size])
+        mae_values.append(mae)
+        mape_values.append(mape)
+        mse_values.append(mse)
+        rmse_values.append(rmse)
+        r2_values.append(r2)
 
-    X_train = np.array(X_train)
-    y_train = np.array(y_train)
+        # epochs_run is out[4] per your return: [model, X_test_compat, X_train_compat, feature_cols, epochs_run]
+        n_epochs_values.append(out[4])
 
-    # Preparar test
-    test_features = test_df[feature_cols].values
-    test_target = test_df[target_col].values
-    scaled_test = (test_features - min_vals) / (max_vals - min_vals + 1e-8)
-    scaled_test_target = (test_target - target_min) / (target_max - target_min + 1e-8)
+    mean_epochs = float(np.mean(n_epochs_values)) if n_epochs_values else np.nan
 
-    X_test, y_test = [], []
-    for i in range(test_size):
-        X_test.append(scaled_test[i:i + window_size])
-        y_test.append(scaled_test_target[i + window_size])
-
-    X_test = np.array(X_test)
-    y_test = np.array(y_test)
-
-    # Tensores
-    X_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
-    y_tensor = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1).to(device)
-
-    # DataLoader
-    dataset = TensorDataset(X_tensor, y_tensor)
-    dataloader = DataLoader(dataset, batch_size, shuffle=False)
-
-
-    # LSTM model
-    class LSTMForecast(nn.Module):
-        def __init__(self, input_size, hidden_size=hidden_size, num_layers=num_layers):
-            super(LSTMForecast, self).__init__()
-            self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.3)
-            self.fc = nn.Linear(hidden_size, 1)
-
-        def forward(self, x):
-            out, _ = self.lstm(x)
-            out = out[:, -1, :]
-            return self.fc(out)
-
-
-    model = LSTMForecast(input_size=X_train.shape[2]).to(device)
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=1e-4)
-
-    # Entrenamiento
-    for epoch in range(epoch_number):
-        for batch_X, batch_y in dataloader:
-            optimizer.zero_grad()
-            output = model(batch_X)
-            loss = criterion(output, batch_y)
-            loss.backward()
-            optimizer.step()
-        if (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch + 1}, Loss: {loss.item():.4f}")
-
-
-
-    # Evaluación
-    X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
-    model.eval()
-    with torch.no_grad():
-        preds_scaled = model(X_test_tensor).squeeze().cpu().numpy()
-
-    preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
-    real = np.array(y_test) * (target_max - target_min + 1e-8) + target_min
-
-    return real, preds
+    return (float(np.mean(mae_values)),
+            float(np.mean(mape_values)),
+            float(np.mean(mse_values)),
+            float(np.mean(rmse_values)),
+            float(np.mean(r2_values)),
+            mean_epochs,
+            float(np.std(mape_values)))
 
 
 def run_lstm(df, target_col, window_size, test_size, batch_size,
@@ -1234,10 +1108,71 @@ def run_lstm(df, target_col, window_size, test_size, batch_size,
     return real, preds, out_list
 
 
+
+import numpy as np
+
+def run_lstm_with_for(df,
+                      target_col,
+                      window_size,
+                      test_size,
+                      batch_size,
+                      hidden_size,
+                      num_layers,
+                      epoch_number,
+                      lr,
+                      device,
+                      seed,
+                      patience,
+                      min_delta,
+                      n_runs=3):
+    mae_values, mape_values, mse_values, rmse_values, r2_values = [], [], [], [], []
+    n_epochs_values = []
+
+    for i in range(n_runs):
+        tmp = df.copy().sort_values("FECHA")
+
+        deleted_sample = test_size * (i + 1)  # move cutoff back by one test block each run
+        if deleted_sample > 0:
+            tmp = tmp.iloc[:-deleted_sample]
+
+        y_true, y_pred, out = run_lstm(
+            df=tmp,
+            target_col=target_col,
+            window_size=window_size,
+            test_size=test_size,
+            batch_size=batch_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            epoch_number=epoch_number,
+            lr=lr,
+            device=device,
+            seed=seed,
+            patience=patience,
+            min_delta=min_delta
+        )
+
+        mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
+
+        mae_values.append(mae)
+        mape_values.append(mape)
+        mse_values.append(mse)
+        rmse_values.append(rmse)
+        r2_values.append(r2)
+        n_epochs_values.append(out[5])  # epochs_ran
+
+    mean_epochs = float(np.mean(n_epochs_values)) if n_epochs_values else np.nan
+
+    return (float(np.mean(mae_values)),
+            float(np.mean(mape_values)),
+            float(np.mean(mse_values)),
+            float(np.mean(rmse_values)),
+            float(np.mean(r2_values)),
+            mean_epochs,
+            float(np.std(mape_values)))
+
+
+
 def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed = 1048596):
-
-
-
 
     feature_cols = [
         col for col in df.columns
@@ -1261,26 +1196,72 @@ def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed = 1048596):
     y_scaler = StandardScaler()
     y_train_scaled = y_scaler.fit_transform(y_train.reshape(-1,1)).ravel()
 
-    try:
-        model = SARIMAX(
-            endog=y_train_scaled,
-            exog=exog_train,
-            order=(p, d, q),
-            seasonal_order=(P, D, Q, m),
-            enforce_stationarity=False,
-            enforce_invertibility=False
+
+    model = SARIMAX(
+        endog=y_train_scaled,
+        # exog=exog_train,
+        order=(p, d, q),
+        seasonal_order=(P, D, Q, m),
+        enforce_stationarity=False,
+        enforce_invertibility=False
+    )
+    res = model.fit(disp=False)
+    fc_scaled = res.predict(
+        start=len(train_df),
+        end=len(df)-1,
+        # exog=exog_test
+    )
+    y_pred = y_scaler.inverse_transform(np.asarray(fc_scaled).reshape(-1,1)).ravel()
+    y_true = y_test
+    out = [model]
+    return y_pred, y_true, out
+
+
+def run_sarima_with_for(df,
+                        target_col,
+                        test_size,
+                        p, d, q, P, D, Q, m,
+                        seed=1048596,
+                        n_runs=3):
+    mae_values, mape_values, mse_values, rmse_values, r2_values = [], [], [], [], []
+    models = []
+
+    for i in range(n_runs):
+        tmp = df.copy().sort_values("FECHA")
+
+        deleted_sample = test_size * (i + 1)  # remove last test blocks to create earlier cutoffs
+        if deleted_sample > 0:
+            tmp = tmp.iloc[:-deleted_sample]
+
+        # your SARIMA returns: y_pred, y_true, out
+        y_pred, y_true, out = run_sarima(
+            tmp, target_col, test_size,
+            p, d, q, P, D, Q, m,
+            seed=seed
         )
-        res = model.fit(disp=False)
-        fc_scaled = res.predict(
-            start=len(train_df),
-            end=len(df)-1,
-            exog=exog_test
-        )
-        y_pred = y_scaler.inverse_transform(np.asarray(fc_scaled).reshape(-1,1)).ravel()
-        y_true = y_test
-        return y_true, y_pred
-    except Exception:
-        return [], []
+
+        mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
+
+        mae_values.append(mae)
+        mape_values.append(mape)
+        mse_values.append(mse)
+        rmse_values.append(rmse)
+        r2_values.append(r2)
+
+        models.append(out)
+
+    print(mape_values)
+
+    return (np.mean(mae_values),
+            np.mean(mape_values),
+            np.mean(mse_values),
+            np.mean(rmse_values),
+            np.mean(r2_values),
+            np.nan,                 # no epochs for SARIMA
+            np.std(mape_values),
+            models)
+
+
 
 def run_dnn(df, target_col, window_size, test_size, batch_size, epoch_number, lr, hidden_sizes, dropout, weight_decay, device, seed):
 
@@ -1409,121 +1390,6 @@ def get_attention_maps(model, sample):
 
     return attn_maps
 
-
-def run_darts_tft2(df,
-                  target_col,
-                  test_size,
-                  window_size,
-                  hidden_size,
-                  lstm_layers,
-                  num_attention_heads,
-                  dropout,
-                  batch_size,
-                  n_epochs,
-                  lr,
-                  grad_clip=1.0,
-                  patience=20,
-                  min_delta=1e-4,
-                  seed=1048596,
-
-                  ):
-    """
-    Trains a Darts TFT model on a univariate weekly series and returns
-    model, predictions, and some metadata.
-    """
-    seed_everything(seed, workers=True)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        print("Running with cuda")
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        torch.use_deterministic_algorithms(True)
-        torch.set_float32_matmul_precision('highest')
-
-
-    output_chunk_length = test_size
-
-    # ---- 1. Build series ----
-    series = TimeSeries.from_dataframe(
-        df,
-        time_col="FECHA",
-        value_cols=target_col,
-    )
-
-
-
-    # ---- 2. Train/val split ----
-    val_size = test_size + window_size
-    train = series[:-val_size]
-    val = series[-val_size:]
-
-
-
-    # ---- 3. Scaling ----
-    scaler = Scaler()
-    train_scaled = scaler.fit_transform(train)
-    val_scaled = scaler.transform(val)
-
-    # ---- 4. Early stopping ----
-    early_stop = pl.callbacks.EarlyStopping(
-        monitor="val_loss",
-        patience=patience,
-        min_delta=min_delta,
-        mode="min",
-    )
-
-    # ---- 5. Model ----
-    model = TFTModel(
-        input_chunk_length=window_size,
-        output_chunk_length=output_chunk_length,
-        hidden_size=hidden_size,
-        lstm_layers=lstm_layers,
-        num_attention_heads=num_attention_heads,
-        dropout=dropout,
-        batch_size=batch_size,
-        n_epochs=n_epochs,
-        add_relative_index=True,
-        add_encoders={
-            "datetime_attribute": {
-                "past": ["weekofyear"],
-                "future": ["weekofyear"],
-            },
-            "cyclic": {
-                "past": ["weekofyear"],
-                "future": ["weekofyear"],
-            },
-        },
-        random_state=seed,
-        likelihood=None,
-        optimizer_kwargs={"lr": lr},
-
-        pl_trainer_kwargs={
-            "accelerator": "gpu" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu",
-            "callbacks": [early_stop],
-            "gradient_clip_val": grad_clip,
-            "gradient_clip_algorithm": "norm",
-        },
-    )
-
-    # ---- 6. Fit ----
-    model.fit(train_scaled, val_series=val_scaled, verbose=True, dataloader_kwargs={"num_workers": 0})
-
-    # ---- 7. Epochs actually run ----
-    epochs_ran = model.trainer.current_epoch + 1
-
-    # ---- 8. Forecast ----
-    pred_scaled = model.predict(n=test_size, dataloader_kwargs={"num_workers": 0})
-    pred = scaler.inverse_transform(pred_scaled)
-
-    val_last = val[-test_size:]
-
-    true_vals = val_last.values().flatten().tolist()
-    pred_vals = pred.values().flatten().tolist()
-    list = [model, train, val, scaler, epochs_ran]
-
-    return true_vals, pred_vals, list
 
 
 def run_darts_tft(df,
