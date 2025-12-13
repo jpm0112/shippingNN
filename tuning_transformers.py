@@ -18,7 +18,8 @@ from functions import (
 # ============================================================
 #  LOAD DATA
 # ============================================================
-initial_test_size = 26
+initial_test_size = 12
+iterations = 50
 
 df = pd.read_csv("weekly_chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"])
@@ -92,7 +93,7 @@ for target_col in target_cols:
     # ============================================================
     #  BAYES OPT LOOP
     # ============================================================
-    iterations = 25
+
 
     for i in range(iterations):
         print(f"\n=== Trial {i + 1}/{iterations} ({target_col}) ===")

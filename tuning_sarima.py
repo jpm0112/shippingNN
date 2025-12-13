@@ -13,82 +13,14 @@ from ax.service.utils.instantiation import ObjectiveProperties
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.preprocessing import StandardScaler
 
-from functions import error_metrics  # same one you use elsewhere
-
-
-# ============================================================
-#  SARIMA (vanilla, no exog)
-# ============================================================
-def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed=1048596):
-    df = df.copy().sort_values("FECHA").reset_index(drop=True)
-
-    train_df = df.iloc[:-test_size].copy()
-    test_df  = df.iloc[-test_size:].copy()
-
-    y_train = train_df[target_col].astype(float).values
-    y_test  = test_df[target_col].astype(float).values
-
-    # optional scaling (you can remove if you prefer)
-    y_scaler = StandardScaler()
-    y_train_scaled = y_scaler.fit_transform(y_train.reshape(-1, 1)).ravel()
-
-    model = SARIMAX(
-        endog=y_train_scaled,
-        order=(int(p), int(d), int(q)),
-        seasonal_order=(int(P), int(D), int(Q), int(m)),
-        enforce_stationarity=False,
-        enforce_invertibility=False
-    )
-    res = model.fit(disp=False)
-
-    # forecast next test_size points
-    fc_scaled = res.get_forecast(steps=test_size).predicted_mean
-    y_pred = y_scaler.inverse_transform(np.asarray(fc_scaled).reshape(-1, 1)).ravel()
-
-    return y_test, y_pred, [res]  # keep a handle if you want
-
-
-def run_sarima_with_for(df,
-                        target_col,
-                        test_size,
-                        p, d, q, P, D, Q, m,
-                        seed=1048596,
-                        n_runs=3):
-    mae_values, mape_values, mse_values, rmse_values, r2_values = [], [], [], [], []
-
-    for i in range(n_runs):
-        tmp = df.copy().sort_values("FECHA").reset_index(drop=True)
-
-        deleted_sample = test_size * (i + 1)
-        if deleted_sample > 0:
-            tmp = tmp.iloc[:-deleted_sample]
-
-        y_true, y_pred, _ = run_sarima(
-            tmp, target_col, test_size,
-            p, d, q, P, D, Q, m,
-            seed=seed
-        )
-
-        mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
-        mae_values.append(mae)
-        mape_values.append(mape)
-        mse_values.append(mse)
-        rmse_values.append(rmse)
-        r2_values.append(r2)
-
-    return (np.mean(mae_values),
-            np.mean(mape_values),
-            np.mean(mse_values),
-            np.mean(rmse_values),
-            np.mean(r2_values),
-            np.nan,              # epochs placeholder (not applicable)
-            np.std(mape_values)) # sd
+from functions import error_metrics, run_sarima, run_sarima_with_for  # same one you use elsewhere
 
 
 # ============================================================
 #  LOAD DATA
 # ============================================================
-initial_test_size = 26
+initial_test_size = 12
+iterations = 50
 
 df = pd.read_csv("weekly_chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"])
@@ -152,7 +84,7 @@ for target_col in target_cols:
     # ============================================================
     #  BAYES OPT LOOP
     # ============================================================
-    iterations = 25
+
 
     for i in range(iterations):
         print(f"\n=== Trial {i + 1}/{iterations} ===")
