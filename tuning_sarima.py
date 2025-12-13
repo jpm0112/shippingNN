@@ -1,0 +1,199 @@
+import warnings
+warnings.filterwarnings("ignore")
+
+import numpy as np
+import pandas as pd
+import csv
+from datetime import datetime
+from pathlib import Path
+
+from ax.service.ax_client import AxClient
+from ax.service.utils.instantiation import ObjectiveProperties
+
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from sklearn.preprocessing import StandardScaler
+
+from functions import error_metrics  # same one you use elsewhere
+
+
+# ============================================================
+#  SARIMA (vanilla, no exog)
+# ============================================================
+def run_sarima(df, target_col, test_size, p, d, q, P, D, Q, m, seed=1048596):
+    df = df.copy().sort_values("FECHA").reset_index(drop=True)
+
+    train_df = df.iloc[:-test_size].copy()
+    test_df  = df.iloc[-test_size:].copy()
+
+    y_train = train_df[target_col].astype(float).values
+    y_test  = test_df[target_col].astype(float).values
+
+    # optional scaling (you can remove if you prefer)
+    y_scaler = StandardScaler()
+    y_train_scaled = y_scaler.fit_transform(y_train.reshape(-1, 1)).ravel()
+
+    model = SARIMAX(
+        endog=y_train_scaled,
+        order=(int(p), int(d), int(q)),
+        seasonal_order=(int(P), int(D), int(Q), int(m)),
+        enforce_stationarity=False,
+        enforce_invertibility=False
+    )
+    res = model.fit(disp=False)
+
+    # forecast next test_size points
+    fc_scaled = res.get_forecast(steps=test_size).predicted_mean
+    y_pred = y_scaler.inverse_transform(np.asarray(fc_scaled).reshape(-1, 1)).ravel()
+
+    return y_test, y_pred, [res]  # keep a handle if you want
+
+
+def run_sarima_with_for(df,
+                        target_col,
+                        test_size,
+                        p, d, q, P, D, Q, m,
+                        seed=1048596,
+                        n_runs=3):
+    mae_values, mape_values, mse_values, rmse_values, r2_values = [], [], [], [], []
+
+    for i in range(n_runs):
+        tmp = df.copy().sort_values("FECHA").reset_index(drop=True)
+
+        deleted_sample = test_size * (i + 1)
+        if deleted_sample > 0:
+            tmp = tmp.iloc[:-deleted_sample]
+
+        y_true, y_pred, _ = run_sarima(
+            tmp, target_col, test_size,
+            p, d, q, P, D, Q, m,
+            seed=seed
+        )
+
+        mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
+        mae_values.append(mae)
+        mape_values.append(mape)
+        mse_values.append(mse)
+        rmse_values.append(rmse)
+        r2_values.append(r2)
+
+    return (np.mean(mae_values),
+            np.mean(mape_values),
+            np.mean(mse_values),
+            np.mean(rmse_values),
+            np.mean(r2_values),
+            np.nan,              # epochs placeholder (not applicable)
+            np.std(mape_values)) # sd
+
+
+# ============================================================
+#  LOAD DATA
+# ============================================================
+initial_test_size = 26
+
+df = pd.read_csv("weekly_chile_data.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"])
+df = df.sort_values("FECHA").reset_index(drop=True)
+
+target_cols = ["FE", "NAE", "NAW", "NE", "SE", "SAW", "SAE"]
+
+# If you have weekly data and expect yearly seasonality, m=52 is typical
+
+
+for target_col in target_cols:
+
+    metric = "mape"
+    country = "chile"
+    seed = 1048596
+
+    # ============================================================
+    #  RESULT CSV
+    # ============================================================
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_dir = Path("results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    csv_path = results_dir / f"sarima_trials_{country}_{target_col}_{timestamp}_{initial_test_size}.csv"
+    csv_file = csv_path.open("w", newline="")
+    csv_writer = csv.DictWriter(csv_file, fieldnames=[
+        "trial_index",
+        "test_size",
+        "p","d","q",
+        "P","D","Q","m",
+        "mae","mape","mse","rmse","r2",
+        "sd",
+        "runtime_s",
+        "started_at",
+    ])
+    csv_writer.writeheader()
+
+    # ============================================================
+    #  AX SEARCH SPACE
+    # ============================================================
+    ax = AxClient()
+    ax.create_experiment(
+        name=f"sarima_experiment_{target_col}",
+        parameters=[
+            {"name": "test_size", "type": "choice", "values": [initial_test_size], "value_type": "int"},
+
+            # non-seasonal
+            {"name": "p", "type": "range", "bounds": [0, 4], "value_type": "int"},
+            {"name": "d", "type": "choice", "values": [0, 1, 2], "value_type": "int"},
+            {"name": "q", "type": "range", "bounds": [0, 4], "value_type": "int"},
+
+            # seasonal
+            {"name": "P", "type": "range", "bounds": [0, 2], "value_type": "int"},
+            {"name": "D", "type": "choice", "values": [0, 1], "value_type": "int"},
+            {"name": "Q", "type": "range", "bounds": [0, 2], "value_type": "int"},
+            {"name": "m", "type": "choice", "values": [52], "value_type": "int"},
+        ],
+        objectives={metric: ObjectiveProperties(minimize=True)},
+    )
+
+    # ============================================================
+    #  BAYES OPT LOOP
+    # ============================================================
+    iterations = 25
+
+    for i in range(iterations):
+        print(f"\n=== Trial {i + 1}/{iterations} ===")
+        params, trial_index = ax.get_next_trial()
+        started_at = datetime.now()
+
+        try:
+            mae, mape, mse, rmse, r2, epochs_ran, sd = run_sarima_with_for(
+                df=df,
+                target_col=target_col,
+                test_size=int(params["test_size"]),
+                p=int(params["p"]), d=int(params["d"]), q=int(params["q"]),
+                P=int(params["P"]), D=int(params["D"]), Q=int(params["Q"]),
+                m=int(params["m"]),
+                seed=seed,
+                n_runs=3
+            )
+
+            runtime_s = (datetime.now() - started_at).total_seconds()
+
+            ax.complete_trial(trial_index, raw_data={metric: float(mape)})
+
+            print("____________________________________________________________")
+            print(f"Trial {trial_index} results: MAE={mae:.4f}, MAPE={mape:.4f}, RMSE={rmse:.4f}, R2={r2:.4f}, SD={sd:.4f}")
+            print("Parameters:", params)
+
+            csv_writer.writerow({
+                "trial_index": trial_index,
+                "test_size": params["test_size"],
+                "p": params["p"], "d": params["d"], "q": params["q"],
+                "P": params["P"], "D": params["D"], "Q": params["Q"], "m": params["m"],
+                "mae": mae, "mape": mape, "mse": mse, "rmse": rmse, "r2": r2,
+                "sd": sd,
+                "runtime_s": runtime_s,
+                "started_at": started_at.isoformat(timespec="seconds"),
+            })
+            csv_file.flush()
+
+        except Exception as e:
+            print("Error in trial:", e)
+            ax.log_trial_failure(trial_index)
+
+    csv_file.close()
+    print("\nSaved:", csv_path)
