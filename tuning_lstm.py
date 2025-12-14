@@ -75,8 +75,8 @@ for target_col in target_cols:
         parameters=[
             {"name": "test_size", "type": "choice", "values": [initial_test_size], "value_type": "int"},
             {"name": "window_size", "type": "range", "bounds": [26, 52], "value_type": "int"},
-            {"name": "hidden_size", "type": "choice", "values": [32, 64, 128, 256], "value_type": "int"},
-            {"name": "num_layers", "type": "range", "bounds": [1, 3], "value_type": "int"},
+            {"name": "hidden_size", "type": "choice", "values": [32, 64, 128, 256, 512, 1024], "value_type": "int"},
+            {"name": "num_layers", "type": "range", "bounds": [1, 4], "value_type": "int"},
             {"name": "batch_size", "type": "choice", "values": [32, 64, 128], "value_type": "int"},
             {"name": "lr", "type": "range", "bounds": [1e-5, 1e-3], "log_scale": True},
             {"name": "epochs", "type": "fixed", "value": 2000},
