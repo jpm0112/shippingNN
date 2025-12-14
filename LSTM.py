@@ -29,20 +29,23 @@ df["FECHA"] = pd.to_datetime(df["FECHA"])
 df = df.sort_values('FECHA')
 
 # Parámetros
-target_col = 'NE'
+target_col = 'FE'
 
 
 # good parameters for container prediction
-window_size = 48
-test_size = 24
-batch_size = 16
+window_size = 41
+test_size = 26
+batch_size = 64
 hidden_size = 256
-num_layers = 2
-epoch_number = 20
-lr = 0.0001
+num_layers = 3
+epoch_number = 2000
+lr = 0.000333205812804923
+patience = 100
+min_delta = 1e-5
 
-real, preds = run_lstm(df, target_col, window_size, test_size, batch_size, hidden_size, num_layers, epoch_number, lr, device, seed, patience, min_delta)
-
+real, preds, out = run_lstm(df, target_col, window_size, test_size, batch_size,
+             hidden_size, num_layers, epoch_number, lr,
+             device, seed, patience, min_delta)
 print('')
 print("Error Metrics:")
 error_metrics(real, preds)
@@ -57,4 +60,4 @@ plt.ylabel(target_col)
 plt.legend()
 plt.grid(True, linestyle="--", linewidth=0.5)
 plt.tight_layout()
-plt.savefig("plots/lstm_prediction.png", dpi=200)
+plt.savefig(f"plots/lstm_prediction_{target_col}_{test_size}.png", dpi=200)
