@@ -69,7 +69,7 @@ plt.ylabel(target_col)
 plt.legend()
 plt.grid(True, linestyle="--", linewidth=0.5)
 plt.tight_layout()
-plt.savefig(f"plots/z_tft_prediction_{target_col}.png", dpi=200)
+plt.savefig(f"plots/tft_prediction_{target_col}_{test_size}.png", dpi=200)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -449,7 +449,7 @@ explainer_shap = shap.KernelExplainer(
 
 x0_2d = x0.reshape(1, -1)  # (1, window_size * F)
 
-shap_values = explainer_shap.shap_values(x0_2d, nsamples=10)
+shap_values = explainer_shap.shap_values(x0_2d, nsamples=50)
 
 # 1) Global-style summary for that point (bar plot)
 plt.figure(figsize=(10, 6))
@@ -526,6 +526,5 @@ plt.gca().invert_yaxis()
 plt.xlabel("Approx. interaction strength")
 plt.title(f"Top {K} interactions with {feat_names[feat_idx]}")
 plt.tight_layout()
-plt.savefig(f"plots/z_shap_interaction_bar_{target_col}.png", dpi=200)
+plt.savefig(f"plots/shap_interaction_bar_{target_col}.png", dpi=200)
 plt.close()
-
