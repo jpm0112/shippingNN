@@ -20,7 +20,7 @@ from functions import error_metrics, run_sarima, run_sarima_with_for  # same one
 #  LOAD DATA
 # ============================================================
 initial_test_size = 12
-iterations = 50
+iterations = 100
 
 df = pd.read_csv("weekly_chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"])
