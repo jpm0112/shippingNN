@@ -18,18 +18,19 @@ df["FECHA"] = pd.to_datetime(df["FECHA"])
 df = df.sort_values("FECHA").reset_index(drop=True)
 
 
-target_col = "FE"
+target_col = "NAE"
 
-test_size = 24 # number of weeks to forecast
-window_size = 52
-hidden_size = 128
+test_size = 12 # number of weeks to forecast
+window_size = 27
+hidden_size = 64
 lstm_layers = 2
 num_attention_heads = 2
-dropout = 0.195661864
+dropout = 0.341350332
 batch_size = 32
-lr = 0.000920696018319848
+lr = 0.000429763952765133
 n_epochs = 2000
-grad_clip = 1
+grad_clip = 2.684042798
+
 
 
 patience = 100
@@ -100,9 +101,12 @@ print("Window mean:",   error_metrics(y_true, y_naive_window_mean))
 
 plt.figure(figsize=(12, 6))
 plt.plot(y_true, marker="o", label="Real")
-plt.plot(y_pred, marker="o", label="Prediction")
+plt.plot(y_pred, marker="o", label="TFT")
 plt.plot(y_naive_last, linestyle="--", label="Naive last")
 plt.plot(y_naive_mean, linestyle="--", label="Naive mean")
+plt.plot(preds_direct, "o-", color="red", label="Direct Lasso")
+
+plt.plot(preds_rec, "o-", color="pink", label="Recursive Lasso")
 plt.title("Prediction (original scale)")
 plt.xlabel("Weeks")
 plt.ylabel(target_col)
@@ -123,7 +127,9 @@ plt.plot(hist_x, history_window, "ko-", label=f"History (last {window_size} week
 # --- Ground truth (test) ---
 plt.plot(test_x, y_true, "o-", color="black", label="Ground truth (test)")
 
-plt.plot(test_x, y_pred_real_lasso, "o-", color="red", label="Lasso")
+plt.plot(test_x, preds_direct, "o-", color="red", label="Direct Lasso")
+
+plt.plot(test_x, preds_rec, "o-", color="blue", label="Recursive Lasso")
 
 # --- TFT prediction ---
 plt.plot(test_x, y_pred, "o--", color="magenta", label="TFT prediction")
