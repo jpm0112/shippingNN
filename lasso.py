@@ -15,7 +15,7 @@ from functions import error_metrics
 # ============================================================
 target_col = "FE"
 H = 12               # forecast horizon (weeks)
-n_lags = 30          # number of lag weeks used as features
+n_lags = 27          # number of lag weeks used as features
 n_splits = 10        # CV splits for LassoCV
 
 # ============================================================
