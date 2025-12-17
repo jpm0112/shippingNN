@@ -1546,7 +1546,8 @@ def run_darts_tft_with_for(df,
               grad_clip=1.0,
               patience=20,
               min_delta=1e-4,
-              seed=1048596):
+              seed=1048596,
+              sample_sets = 3):
     mae_values = []
     mape_values = []
     mse_values = []
@@ -1554,10 +1555,7 @@ def run_darts_tft_with_for(df,
     r2_values = []
     n_epochs_values = []
 
-    for i in range(3):
-
-
-
+    for i in range(sample_sets):
          # Run model
         tmp = df.copy().sort_values("FECHA")
         deleted_sample = test_size*(i+1)  # delete the test samples from the end
