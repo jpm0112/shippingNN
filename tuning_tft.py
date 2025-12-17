@@ -14,7 +14,8 @@ from functions import run_darts_tft, error_metrics, run_darts_tft_with_for, clea
 #  LOAD DATA
 # ============================================================
 
-initial_test_size = 26
+prediction_size = 12
+number_test_sets = 3
 
 
 
@@ -43,7 +44,7 @@ for target_col in target_cols:
     results_dir = Path("results")
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    csv_path = results_dir / f"tft_trials_{country}_{target_col}_{timestamp}_{initial_test_size}.csv"
+    csv_path = results_dir / f"tft_trials_{country}_{target_col}_{timestamp}_{prediction_size}.csv"
     csv_file = csv_path.open("w", newline="")
 
     csv_writer = csv.DictWriter(csv_file, fieldnames=[
@@ -73,7 +74,7 @@ for target_col in target_cols:
     ax.create_experiment(
         name="tft_experiment",
         parameters=[
-            {"name": "test_size", "type": "choice", "values": [initial_test_size], "value_type": "int"},
+            {"name": "test_size", "type": "choice", "values": [prediction_size], "value_type": "int"},
             {"name": "window_size", "type": "range", "bounds": [26,52], "value_type": "int"},
             {"name": "hidden_size", "type": "choice", "values": [32, 64, 128, 256], "value_type": "int"},
             {"name": "lstm_layers", "type": "range", "bounds": [1, 4], "value_type": "int"},
@@ -90,7 +91,7 @@ for target_col in target_cols:
     # ============================================================
     #  BAYES OPT LOOP
     # ============================================================
-    iterations = 25
+    iterations = 50
 
     for i in range(iterations):
         print(f"\n=== Trial {i + 1}/{iterations} ===")
@@ -105,30 +106,8 @@ for target_col in target_cols:
             tmp = df.copy().sort_values("FECHA")
             deleted_sample = int(params["test_size"])  # delete the test samples from the end
             if deleted_sample > 0:
-                tmp = tmp.iloc[:-deleted_sample]
-            # Run model
-            # true_vals, pred_vals, out = run_darts_tft(
-            #     df=tmp,
-            #     target_col=target_col,
-            #     test_size=int(params["test_size"]),
-            #     window_size=int(params["window_size"]),
-            #     hidden_size=int(params["hidden_size"]),
-            #     lstm_layers=int(params["lstm_layers"]),
-            #     num_attention_heads=int(params["num_attention_heads"]),
-            #     dropout=float(params["dropout"]),
-            #     batch_size=int(params["batch_size"]),
-            #     n_epochs=int(params["epochs"]),
-            #     lr=float(params["lr"]),
-            #     grad_clip=float(params["grad_clip"]),
-            #     patience=patience,
-            #     min_delta=min_delta,
-            #     seed=seed,
-            # )
+                tmp = tmp.iloc[:-deleted_sample*number_test_sets]
 
-            # epochs_ran = out[5]
-            #
-            # # Metrics
-            # mae, mape, mse, rmse, r2 = error_metrics(true_vals, pred_vals)
 
             mae, mape, mse, rmse, r2, epochs_ran, sd = run_darts_tft_with_for(
                 df=tmp,
@@ -146,6 +125,7 @@ for target_col in target_cols:
                 patience=patience,
                 min_delta=min_delta,
                 seed=seed,
+                sample_sets=3
             )
             print("____________________________________________________________")
             print(f"Trial {trial_index} results: MAE={mae:.4f}, MAPE={mape:.4f}, MSE={mse:.4f}, RMSE={rmse:.4f}, R2={r2:.4f}, Epochs Ran={epochs_ran}")
