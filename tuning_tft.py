@@ -14,7 +14,7 @@ from functions import run_darts_tft, error_metrics, run_darts_tft_with_for, clea
 #  LOAD DATA
 # ============================================================
 
-prediction_size = 12
+prediction_size = 4
 number_test_sets = 3
 
 
@@ -75,7 +75,7 @@ for target_col in target_cols:
         name="tft_experiment",
         parameters=[
             {"name": "test_size", "type": "choice", "values": [prediction_size], "value_type": "int"},
-            {"name": "window_size", "type": "range", "bounds": [26,52], "value_type": "int"},
+            {"name": "window_size", "type": "range", "bounds": [8,52], "value_type": "int"},
             {"name": "hidden_size", "type": "choice", "values": [32, 64, 128, 256], "value_type": "int"},
             {"name": "lstm_layers", "type": "range", "bounds": [1, 4], "value_type": "int"},
             {"name": "num_attention_heads", "type": "choice", "values": [2, 4], "value_type": "int"},
