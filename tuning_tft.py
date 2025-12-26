@@ -14,7 +14,7 @@ from functions import run_darts_tft, error_metrics, run_darts_tft_with_for, clea
 #  LOAD DATA
 # ============================================================
 
-prediction_size = 4
+prediction_size = 8
 number_test_sets = 3
 
 
