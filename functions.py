@@ -1414,13 +1414,13 @@ def run_darts_tft(df,
     seed_everything(seed, workers=True)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        print("Running with cuda")
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        torch.use_deterministic_algorithms(True)
-        torch.set_float32_matmul_precision('highest')
+    # if torch.cuda.is_available():
+    #     print("Running with cuda")
+    #     torch.cuda.manual_seed_all(seed)
+    #     torch.backends.cudnn.deterministic = True
+    #     torch.backends.cudnn.benchmark = False
+    #     torch.use_deterministic_algorithms(True)
+    #     torch.set_float32_matmul_precision('highest')
 
     output_chunk_length = test_size
 
