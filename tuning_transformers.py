@@ -19,6 +19,7 @@ from functions import (
 #  LOAD DATA
 # ============================================================
 initial_test_size = 12
+number_test_sets = 3
 iterations = 100
 
 df = pd.read_csv("weekly_chile_data.csv")
@@ -107,7 +108,8 @@ for target_col in target_cols:
             tmp = df.copy().sort_values("FECHA")
             deleted_sample = int(params["test_size"])
             if deleted_sample > 0:
-                tmp = tmp.iloc[:-deleted_sample]
+                tmp = tmp.iloc[:-deleted_sample * number_test_sets]
+
 
             mae, mape, mse, rmse, r2, epochs_ran, sd = run_transformer_with_for(
                 df=tmp,
