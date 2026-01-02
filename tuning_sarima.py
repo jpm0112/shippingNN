@@ -21,6 +21,7 @@ from functions import error_metrics, run_sarima, run_sarima_with_for  # same one
 # ============================================================
 initial_test_size = 12
 iterations = 100
+number_test_sets = 3
 
 df = pd.read_csv("weekly_chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"])
@@ -92,8 +93,13 @@ for target_col in target_cols:
         started_at = datetime.now()
 
         try:
+
+            tmp = df.copy().sort_values("FECHA")
+            deleted_sample = int(params["test_size"])
+            if deleted_sample > 0:
+                tmp = tmp.iloc[:-deleted_sample * number_test_sets]
             mae, mape, mse, rmse, r2, epochs_ran, sd = run_sarima_with_for(
-                df=df,
+                df=tmp,
                 target_col=target_col,
                 test_size=int(params["test_size"]),
                 p=int(params["p"]), d=int(params["d"]), q=int(params["q"]),

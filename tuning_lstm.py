@@ -21,6 +21,7 @@ from functions import (
 # ============================================================
 initial_test_size = 12
 iterations = 100
+number_test_sets = 3
 
 df = pd.read_csv("weekly_chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"])
@@ -101,7 +102,7 @@ for target_col in target_cols:
             tmp = df.copy().sort_values("FECHA")
             deleted_sample = int(params["test_size"])
             if deleted_sample > 0:
-                tmp = tmp.iloc[:-deleted_sample]
+                tmp = tmp.iloc[:-deleted_sample * number_test_sets]
 
             mae, mape, mse, rmse, r2, epochs_ran, sd = run_lstm_with_for(
                 df=tmp,
