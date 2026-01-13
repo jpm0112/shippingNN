@@ -508,37 +508,43 @@ def device_info(dev: torch.device) -> str:
         return "Apple Metal (MPS)"
     return "CPU"
 
+
 def error_metrics(y_true, y_pred):
     y_true = np.asarray(y_true, dtype=float).ravel()
     y_pred = np.asarray(y_pred, dtype=float).ravel()
 
-    # Basic errors
+    # NEW: drop non-finite pairs (prevents NaNs from model/data)
+    mask = np.isfinite(y_true) & np.isfinite(y_pred)
+    y_true = y_true[mask]
+    y_pred = y_pred[mask]
+
     err = y_true - y_pred
     mse = np.mean(err ** 2)
     rmse = np.sqrt(mse)
     mae = np.mean(np.abs(err))
 
-    # R² with constant-target handling
     ss_res = np.sum(err ** 2)
     ss_tot = np.sum((y_true - y_true.mean()) ** 2)
     if ss_tot == 0:
-        r2 = 1.0 if mse == 0 else 0.0   # sklearn convention for constant y_true
+        r2 = 1.0 if mse == 0 else 0.0
     else:
         r2 = 1 - ss_res / ss_tot
 
-    # MAPE that ignores zeros in y_true (or use epsilon if you prefer)
-    nonzero = y_true != 0
-    if nonzero.any():
-        mape = np.mean(np.abs(err[nonzero] / y_true[nonzero])) * 100
-    else:
-        mape = np.nan  # undefined if all y_true are zero
+    # MAPE: avoid NaN when all zeros (and avoid div-by-zero/inf)
+    eps = 1e-8
+    denom = np.maximum(np.abs(y_true), eps)
+    mape = np.mean(np.abs(err / denom)) * 100
+
+    # NEW: final safety (Ax/BoTorch hates NaN/inf)
+    if not np.isfinite(mape):
+        mape = 1e6
 
     print(f"MSE: {mse:.2f}")
     print(f"RMSE: {rmse:.2f}")
     print(f"MAE: {mae:.2f}")
     print(f"MAPE: {mape:.2f}%")
     print(f"R²: {r2:.4f}")
-    return(mae,mape,mse,rmse,r2)
+    return (mae, mape, mse, rmse, r2)
 
 
 def run_tft(data, target_col, window_size, test_size, grad_clip,
@@ -1252,15 +1258,14 @@ def run_sarima_with_for(df,
 
     print(mape_values)
 
+
     return (np.mean(mae_values),
             np.mean(mape_values),
             np.mean(mse_values),
             np.mean(rmse_values),
             np.mean(r2_values),
-            np.nan,                 # no epochs for SARIMA
-            np.std(mape_values),
-            models)
-
+            np.nan,  # no epochs for SARIMA
+            np.std(mape_values))
 
 
 def run_dnn(df, target_col, window_size, test_size, batch_size, epoch_number, lr, hidden_sizes, dropout, weight_decay, device, seed):

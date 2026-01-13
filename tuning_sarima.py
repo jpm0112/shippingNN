@@ -19,7 +19,7 @@ from functions import error_metrics, run_sarima, run_sarima_with_for  # same one
 # ============================================================
 #  LOAD DATA
 # ============================================================
-initial_test_size = 12
+initial_test_size = 24
 iterations = 100
 number_test_sets = 3
 
@@ -108,6 +108,9 @@ for target_col in target_cols:
                 seed=seed,
                 n_runs=3
             )
+
+            if (mape is None) or (not np.isfinite(mape)):
+                raise ValueError(f"Non-finite objective mape={mape}")
 
             runtime_s = (datetime.now() - started_at).total_seconds()
 
