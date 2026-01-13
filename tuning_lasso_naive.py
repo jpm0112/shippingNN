@@ -21,7 +21,7 @@ from functions import error_metrics
 country = "chile"
 target_col = "NAE"
 
-test_size = 12  # H
+test_size = 24  # H
 window_size = 27  # n_lags
 n_splits = 10
 sample_sets = 3  # number of test sets (like your TFT function)
