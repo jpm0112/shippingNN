@@ -154,9 +154,44 @@ with tab1b:
 
     if df.empty:
         st.warning("No matching files found.")
-        st.stop()
-
+    else:
     # -------- Plot logic (same idea as Tab1, but method-aware) --------
+        fig, ax = plt.subplots()
+
+        if method_choice == "All" and route_choice == "All":
+            for (mth, r), g in df.groupby(["method", "route"]):
+                g = g.sort_values("test_size")
+                ax.plot(g["test_size"], g["best_mape"], marker="o", label=f"{mth}-{r}")
+            ax.set_title("Best MAPE vs test size (method-route)")
+
+        elif method_choice != "All" and route_choice == "All":
+            dfx = df[df["method"] == method_choice]
+            for r, g in dfx.groupby("route"):
+                g = g.sort_values("test_size")
+                ax.plot(g["test_size"], g["best_mape"], marker="o", label=r)
+            ax.set_title(f"Best MAPE vs test size ({method_choice}, by route)")
+
+        elif method_choice == "All" and route_choice != "All":
+            dfx = df[df["route"] == route_choice]
+            for mth, g in dfx.groupby("method"):
+                g = g.sort_values("test_size")
+                ax.plot(g["test_size"], g["best_mape"], marker="o", label=mth)
+            ax.set_title(f"Best MAPE vs test size ({route_choice}, by method)")
+
+        else:
+            g = df.sort_values("test_size")
+            ax.plot(g["test_size"], g["best_mape"], marker="o")
+            ax.set_title(f"Best MAPE vs test size ({method_choice}, {route_choice})")
+
+        ax.set_xlabel("test_size")
+        ax.set_ylabel("best MAPE (min per file)")
+        ax.legend()
+        st.pyplot(fig)
+
+        st.dataframe(df.sort_values(["method", "route", "test_size"]), use_container_width=True)
+
+
+# -------- Plot logic (same idea as Tab1, but method-aware) --------
     fig, ax = plt.subplots()
 
     if method_choice == "All" and route_choice == "All":
