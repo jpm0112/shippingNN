@@ -14,7 +14,7 @@ from functions import run_darts_tft, error_metrics, run_darts_tft_with_for, clea
 #  LOAD DATA
 # ============================================================
 
-prediction_size = 8
+prediction_size = 12
 number_test_sets = 3
 
 
@@ -24,7 +24,7 @@ df["FECHA"] = pd.to_datetime(df["FECHA"])
 df = df.sort_values("FECHA")
 
 target_cols = ["FE", "NAE","NAW","NE","SE","SAW","SAE"] #I can rerun NAE as it crashed at 97 iterations
-target_cols = ["NAW", "NE", "SE", "SAW", "SAE"]
+# target_cols = ["NAW", "NE", "SE", "SAW", "SAE"]
 for target_col in target_cols:
 
 
@@ -44,7 +44,7 @@ for target_col in target_cols:
     results_dir = Path("results")
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    csv_path = results_dir / f"tft_transformers_trials_{country}_{target_col}_{timestamp}_{prediction_size}.csv"
+    csv_path = results_dir / f"tft_trials_{country}_{target_col}_{timestamp}_{prediction_size}.csv"
     csv_file = csv_path.open("w", newline="")
 
     csv_writer = csv.DictWriter(csv_file, fieldnames=[
@@ -73,31 +73,19 @@ for target_col in target_cols:
     ax = AxClient()
     ax.create_experiment(
         name="tft_experiment",
-        # parameters=[
-        #     {"name": "test_size", "type": "choice", "values": [prediction_size], "value_type": "int"},
-        #     {"name": "window_size", "type": "range", "bounds": [8,52], "value_type": "int"},
-        #     {"name": "hidden_size", "type": "choice", "values": [32, 64, 128, 256], "value_type": "int"},
-        #     {"name": "lstm_layers", "type": "range", "bounds": [1, 4], "value_type": "int"},
-        #     {"name": "num_attention_heads", "type": "choice", "values": [2, 4], "value_type": "int"},
-        #     {"name": "dropout", "type": "range", "bounds": [0.1, 0.6],"value_type": "float"},
-        #     {"name": "batch_size", "type": "choice", "values": [32, 64, 128], "value_type": "int"},
-        #     {"name": "lr", "type": "range", "bounds": [1e-5, 1e-3], "log_scale": True},
-        #     {"name": "grad_clip", "type": "range", "bounds": [0.5, 3],"value_type": "float"},
-        #     {"name": "epochs", "type": "fixed", "value": 2000},
-        # ],
-
         parameters=[
             {"name": "test_size", "type": "choice", "values": [prediction_size], "value_type": "int"},
-            {"name": "window_size", "type": "fixed", "value": 28},
-            {"name": "hidden_size", "type": "fixed", "value": 128},
+            {"name": "window_size", "type": "range", "bounds": [8,52], "value_type": "int"},
+            {"name": "hidden_size", "type": "choice", "values": [32, 64, 128, 256], "value_type": "int"},
             {"name": "lstm_layers", "type": "range", "bounds": [1, 4], "value_type": "int"},
-            {"name": "num_attention_heads", "type": "fixed", "value": 2},
-            {"name": "dropout", "type": "fixed", "value": 0.332641601},
-            {"name": "batch_size", "type": "fixed", "value": 32},
-            {"name": "lr", "type": "fixed", "value": 0.001},
-            {"name": "grad_clip", "type": "range", "bounds": [0.5, 3], "value_type": "float"},
+            {"name": "num_attention_heads", "type": "choice", "values": [2, 4], "value_type": "int"},
+            {"name": "dropout", "type": "range", "bounds": [0.1, 0.6],"value_type": "float"},
+            {"name": "batch_size", "type": "choice", "values": [32, 64, 128], "value_type": "int"},
+            {"name": "lr", "type": "range", "bounds": [1e-5, 1e-3], "log_scale": True},
+            {"name": "grad_clip", "type": "range", "bounds": [0.5, 3],"value_type": "float"},
             {"name": "epochs", "type": "fixed", "value": 2000},
         ],
+
         objectives={metric: ObjectiveProperties(minimize=True)},
     )
 
