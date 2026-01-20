@@ -19,7 +19,7 @@ from functions import (
 # ============================================================
 #  LOAD DATA
 # ============================================================
-initial_test_size = 12
+initial_test_size = 4
 iterations = 100
 number_test_sets = 3
 
