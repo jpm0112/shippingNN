@@ -32,7 +32,7 @@ for target_col in target_cols:
     minimize = True
     country = "chile"
 
-    patience = 100
+    patience = 200
     min_delta = 1e-5
     seed = 1048596
 
@@ -75,8 +75,8 @@ for target_col in target_cols:
         name="tft_experiment",
         parameters=[
             {"name": "test_size", "type": "choice", "values": [prediction_size], "value_type": "int"},
-            {"name": "window_size", "type": "range", "bounds": [8,52], "value_type": "int"},
-            {"name": "hidden_size", "type": "choice", "values": [32, 64, 128, 256], "value_type": "int"},
+            {"name": "window_size", "type": "range", "bounds": [8,32], "value_type": "int"},
+            {"name": "hidden_size", "type": "choice", "values": [32, 64, 128], "value_type": "int"},
             {"name": "lstm_layers", "type": "range", "bounds": [1, 4], "value_type": "int"},
             {"name": "num_attention_heads", "type": "choice", "values": [2, 4], "value_type": "int"},
             {"name": "dropout", "type": "range", "bounds": [0.1, 0.6],"value_type": "float"},
@@ -92,7 +92,7 @@ for target_col in target_cols:
     # ============================================================
     #  BAYES OPT LOOP
     # ============================================================
-    iterations = 50
+    iterations = 100
 
     for i in range(iterations):
         print(f"\n=== Trial {i + 1}/{iterations} ===")
