@@ -32,7 +32,7 @@ for target_col in target_cols:
     minimize = True
     country = "chile"
 
-    patience = 200
+    patience = 100
     min_delta = 1e-5
     seed = 1048596
 
