@@ -26,8 +26,8 @@ for target_col in target_cols:
 
 
 
-    test_size = 4  # H
-    window_size = 27  # n_lags
+    test_size = 12  # H
+    window_size = 40  # n_lags
     n_splits = 10
     sample_sets = 3  # number of test sets (like your TFT function)
 
@@ -188,14 +188,18 @@ for target_col in target_cols:
     # ============================================================
     # Wrapper that matches your TFT "delete test_size*(i+1)" scheme
     # ============================================================
-    def eval_with_for(df, method_fn, target_col, test_size, n_lags, n_splits=None, seed=1048596, sample_sets=3):
+    def eval_with_for(df, method_fn, target_col, test_size, n_lags, n_splits=None, seed=1048596, sample_sets=sample_sets):
         mae_values, mape_values, mse_values, rmse_values, r2_values = [], [], [], [], []
 
         df_sorted = df.copy().sort_values("FECHA").reset_index(drop=True)
 
         for i in range(sample_sets):
             tmp = df_sorted.copy()
-            deleted_sample = test_size * (i + 1)  # EXACTLY like your TFT function
+            #set the seed:
+            np.random.seed(seed + i)
+            random_number = i
+            # random_number = np.random.randint(0, 20)
+            deleted_sample = test_size * (i + random_number)  # EXACTLY like your TFT function
             if deleted_sample > 0:
                 tmp = tmp.iloc[:-deleted_sample]
 
@@ -249,7 +253,7 @@ for target_col in target_cols:
             "epochs_ran": mean_epochs,
         })
 
-        csv_path = RESULTS_DIR / f"{method_name}_trials_{country}_{target_col}_{timestamp}_{test_size}.csv"
+        csv_path = RESULTS_DIR / f"test{method_name}_trials_{country}_{target_col}_{timestamp}_{test_size}.csv"
         pd.DataFrame([row], columns=CSV_COLS).to_csv(csv_path, index=False)
         print("Saved:", csv_path)
 
@@ -272,20 +276,20 @@ for target_col in target_cols:
     print("[LASSO_DIRECT]", metrics_direct)
     write_one_row_csv("lasso_direct", metrics_direct, start, runtime)
 
-    # Lasso recursive
-    start = datetime.now()
-    metrics_rec = eval_with_for(
-        df=df,
-        method_fn=predict_lasso_recursive,
-        target_col=target_col,
-        test_size=test_size,
-        n_lags=window_size,
-        n_splits=n_splits,
-        sample_sets=sample_sets
-    )
-    runtime = (datetime.now() - start).total_seconds()
-    print("[LASSO_RECURSIVE]", metrics_rec)
-    write_one_row_csv("lasso_recursive", metrics_rec, start, runtime)
+    # # Lasso recursive
+    # start = datetime.now()
+    # metrics_rec = eval_with_for(
+    #     df=df,
+    #     method_fn=predict_lasso_recursive,
+    #     target_col=target_col,
+    #     test_size=test_size,
+    #     n_lags=window_size,
+    #     n_splits=n_splits,
+    #     sample_sets=sample_sets
+    # )
+    # runtime = (datetime.now() - start).total_seconds()
+    # print("[LASSO_RECURSIVE]", metrics_rec)
+    # write_one_row_csv("lasso_recursive", metrics_rec, start, runtime)
 
     # Naive last
     start = datetime.now()
