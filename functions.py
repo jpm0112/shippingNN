@@ -672,7 +672,51 @@ def run_tft(data, target_col, window_size, test_size, grad_clip,
 
 # receives the data as a pandas dataframe as shown in the transformers.py file
 
+from darts import TimeSeries
 
+
+class MinMaxTimeSeriesScaler:
+    """
+    Min-max scaler for a 1D target TimeSeries.
+    Matches the interface you use in your TFT LIME code:
+      scaler_y.transform(ts), scaler_y.inverse_transform(ts)
+    """
+
+    def __init__(self, vmin: float, vmax: float, eps: float = 1e-8):
+        self.vmin = float(vmin)
+        self.vmax = float(vmax)
+        self.eps = eps
+
+    def transform(self, ts: TimeSeries) -> TimeSeries:
+        vals = ts.values(copy=True)  # (T, 1)
+        scaled = (vals - self.vmin) / (self.vmax - self.vmin + self.eps)
+        return TimeSeries.from_times_and_values(ts.time_index, scaled)
+
+    def inverse_transform(self, ts: TimeSeries) -> TimeSeries:
+        vals = ts.values(copy=True)  # (T, 1)
+        inv = vals * (self.vmax - self.vmin + self.eps) + self.vmin
+        return TimeSeries.from_times_and_values(ts.time_index, inv)
+
+
+class MinMaxCovariatesScaler:
+    """
+    Min-max scaler for multivariate covariates TimeSeries (T, n_cov).
+    """
+
+    def __init__(self, vmin: np.ndarray, vmax: np.ndarray, eps: float = 1e-8):
+        self.vmin = np.asarray(vmin, dtype=float)  # (n_cov,)
+        self.vmax = np.asarray(vmax, dtype=float)  # (n_cov,)
+        self.eps = eps
+
+    def transform(self, ts: TimeSeries) -> TimeSeries:
+        vals = ts.values(copy=True)  # (T, n_cov)
+        scaled = (vals - self.vmin) / (self.vmax - self.vmin + self.eps)
+        return TimeSeries.from_times_and_values(ts.time_index, scaled)
+
+    def inverse_transform(self, ts: TimeSeries) -> TimeSeries:
+        vals = ts.values(copy=True)
+        inv = vals * (self.vmax - self.vmin + self.eps) + self.vmin
+        return TimeSeries.from_times_and_values(ts.time_index, inv)
 
 def run_transformer(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr, dropout,
                     device, seed, optimizer_type='adam', weight_decay=1e-4, early_stop=True, patience=200, min_delta=1e-5):
@@ -868,9 +912,243 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
 
     # ---- compatibility outputs ----
     X_test_compat  = np.repeat(X0[np.newaxis, :, :], horizon, axis=0)  # (horizon, window_size, n_features)
-    X_train_compat = X_tr                                           # (N_train_windows, window_size, n_features)
+    X_train_compat = X_tr
+
+    # Build TimeSeries (UNSCALED) so your LIME code can rebuild windows the same way
+
+
+    series_full = TimeSeries.from_dataframe(df, time_col="FECHA", value_cols=target_col)
+    cov_full = TimeSeries.from_dataframe(df, time_col="FECHA", value_cols=feature_cols)
+
+    # Train/val split consistent with your Transformer split (horizon = test_size)
+    train_ts = series_full[:-horizon]
+    val_ts = series_full[-horizon:]
+
+    # Create scaler objects that mimic Darts Scaler interface
+    scaler_y = MinMaxTimeSeriesScaler(target_min, target_max)
+    scaler_cov = MinMaxCovariatesScaler(min_vals, max_vals)
+
+    # Return the SAME out_list layout as TFT
+    out_list = [model, train_ts, val_ts, scaler_y, scaler_cov, epochs_run, feature_cols]
+
 
     return real, preds, [model, X_test_compat, X_train_compat, feature_cols, epochs_run]
+
+
+def run_transformer_xai(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr,
+                    dropout,
+                    device, seed, optimizer_type='adam', weight_decay=1e-4, early_stop=True, patience=200,
+                    min_delta=1e-5):
+    seed_everything(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    print(f"Using device: {device_info(device)}")
+
+    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
+
+    # ===== Split train/test =====
+    horizon = test_size
+    val_size = test_size
+    train_df = df[:-horizon]
+    test_df = df[-horizon:]
+
+    # ===== Manual scaling =====
+    train_features = train_df[feature_cols].values
+    train_target = train_df[target_col].values
+    min_vals = train_features.min(axis=0)
+    max_vals = train_features.max(axis=0)
+    target_min = train_target.min()
+    target_max = train_target.max()
+
+    scaled_train = (train_features - min_vals) / (max_vals - min_vals + 1e-8)
+    scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
+
+    # Make val windows
+    # Make train/val windows with DISJOINT target regions
+    split_idx = len(train_df) - val_size
+
+    X_tr, y_tr, X_va, y_va = [], [], [], []
+
+    for i in range(0, len(train_df) - window_size - horizon + 1):
+        x_start = i
+        x_end = i + window_size
+        y_start = x_end
+        y_end = y_start + horizon
+
+        x_win = scaled_train[x_start:x_end]
+        y_win = scaled_target[y_start:y_end]
+
+        # train: targets fully BEFORE split_idx
+        if y_end <= split_idx:
+            X_tr.append(x_win)
+            y_tr.append(y_win)
+
+        # val: targets start AT/AFTER split_idx (fully in val block)
+        elif y_start >= split_idx:
+            X_va.append(x_win)
+            y_va.append(y_win)
+
+    X_tr, y_tr = np.array(X_tr), np.array(y_tr)
+    X_va, y_va = np.array(X_va), np.array(y_va)
+
+    if len(X_tr) == 0 or len(X_va) == 0:
+        raise ValueError(
+            f"Not enough data to build windows: got X_tr={len(X_tr)}, X_va={len(X_va)}. "
+            f"Try smaller window_size/horizon or larger dataset."
+        )
+
+    X_tr, y_tr = np.array(X_tr), np.array(y_tr)
+    X_va, y_va = np.array(X_va), np.array(y_va)
+
+    train_loader = DataLoader(TensorDataset(
+        torch.tensor(X_tr, dtype=torch.float32),
+        torch.tensor(y_tr, dtype=torch.float32)
+    ), batch_size=batch_size, shuffle=True)
+
+    val_loader = DataLoader(TensorDataset(
+        torch.tensor(X_va, dtype=torch.float32),
+        torch.tensor(y_va, dtype=torch.float32)
+    ), batch_size=batch_size, shuffle=False)
+
+    # ===== Model =====
+    class TransformerForecast(nn.Module):
+        def __init__(self, input_size, d_model=d_model, nhead=n_head,
+                     num_layers=num_layers, max_len=window_size):
+            super().__init__()
+            self.input_linear = nn.Linear(input_size, d_model)
+
+            # learned positional encodings
+            self.positional_encoding = nn.Parameter(torch.zeros(1, max_len, d_model))
+            nn.init.normal_(self.positional_encoding, std=0.02)
+
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=d_model,
+                nhead=n_head,
+                dropout=dropout,
+                batch_first=True
+            )
+            self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+            self.fc = nn.Linear(d_model, horizon)
+
+        def forward(self, x):
+            x = self.input_linear(x)  # (B, T, D)
+            x = x + self.positional_encoding[:, :x.size(1), :]
+            x = self.transformer(x)
+            out = x[:, -1, :]
+            return self.fc(out)
+
+    model = TransformerForecast(input_size=X_tr.shape[2]).to(device)
+
+    criterion = nn.MSELoss()
+    if optimizer_type == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    if optimizer_type == 'adamw':
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    if optimizer_type == 'sgd':
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=0.9)
+    if optimizer_type == 'Adagrad':
+        optimizer = torch.optim.Adagrad(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    import copy
+
+    best_val_loss = float("inf")
+    best_state = None
+    epochs_no_improve = 0
+    epochs_run = 0
+    # ===== Training =====
+    for epoch in range(epoch_number):
+        # ---- train epoch ----
+        model.train()
+        running_loss = 0.0
+        n_samples = 0
+
+        for batch_X, batch_y in train_loader:  # <- use train_loader
+            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
+
+            optimizer.zero_grad()
+            output = model(batch_X)
+            loss = criterion(output, batch_y)
+            loss.backward()
+            optimizer.step()
+
+            bs_actual = batch_X.size(0)
+            running_loss += loss.item() * bs_actual
+            n_samples += bs_actual
+
+        train_loss = running_loss / max(n_samples, 1)
+        epochs_run = epoch + 1
+
+        # ---- validation epoch (THIS GOES HERE) ----
+        model.eval()
+        val_running = 0.0
+        val_samples = 0
+        with torch.no_grad():
+            for val_X, val_y in val_loader:  # <- use val_loader
+                val_X, val_y = val_X.to(device), val_y.to(device)
+                val_out = model(val_X)
+                vloss = criterion(val_out, val_y)
+
+                bs = val_X.size(0)
+                val_running += vloss.item() * bs
+                val_samples += bs
+
+        val_loss = val_running / max(val_samples, 1)
+
+        if (epoch + 1) % 10 == 0:
+            print(f"Epoch {epoch + 1}, train_loss: {train_loss:.4f}, val_loss: {val_loss:.4f}")
+
+        # ---- early stopping using VAL loss (THIS GOES HERE) ----
+        if early_stop:
+            if best_val_loss - val_loss > min_delta:
+                best_val_loss = val_loss
+                best_state = copy.deepcopy(model.state_dict())
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+
+            if epochs_no_improve >= patience:
+                print(f"Early stopping at epoch {epoch + 1} (best_val_loss={best_val_loss:.4f})")
+                break
+
+    # Restore best weights BEFORE final evaluation
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    # ===== Evaluation (true 24-ahead from ONE cutoff) =====
+    X0 = scaled_train[-window_size:]  # (window_size, n_features)
+
+    X0_tensor = torch.tensor(X0, dtype=torch.float32).unsqueeze(0).to(device)
+    model.eval()
+    with torch.no_grad():
+        preds_scaled = model(X0_tensor).squeeze(0).cpu().numpy()  # (horizon,)
+
+    preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
+    real = test_df[target_col].values  # (horizon,)
+
+    # ---- compatibility outputs ----
+    X_test_compat = np.repeat(X0[np.newaxis, :, :], horizon, axis=0)  # (horizon, window_size, n_features)
+    X_train_compat = X_tr
+
+    # Build TimeSeries (UNSCALED) so your LIME code can rebuild windows the same way
+
+    series_full = TimeSeries.from_dataframe(df, time_col="FECHA", value_cols=target_col)
+    cov_full = TimeSeries.from_dataframe(df, time_col="FECHA", value_cols=feature_cols)
+
+    # Train/val split consistent with your Transformer split (horizon = test_size)
+    train_ts = series_full[:-horizon]
+    val_ts = series_full[-horizon:]
+
+    # Create scaler objects that mimic Darts Scaler interface
+    scaler_y = MinMaxTimeSeriesScaler(target_min, target_max)
+    scaler_cov = MinMaxCovariatesScaler(min_vals, max_vals)
+
+    # Return the SAME out_list layout as TFT
+    out_list = [model, train_ts, val_ts, scaler_y, scaler_cov, epochs_run, feature_cols]
+
+    return real, preds, out_list
 
 
 def run_transformer_with_for(df,
@@ -943,6 +1221,80 @@ def run_transformer_with_for(df,
             float(np.mean(r2_values)),
             mean_epochs,
             float(np.std(mape_values)))
+
+
+def run_transformer_with_for_xai(df,
+                             target_col,
+                             window_size,
+                             test_size,
+                             batch_size,
+                             d_model,
+                             n_head,
+                             num_layers,
+                             epoch_number,
+                             lr,
+                             dropout,
+                             device,
+                             seed,
+                             optimizer_type="adam",
+                             weight_decay=1e-4,
+                             early_stop=True,
+                             patience=200,
+                             min_delta=1e-5,
+                             n_runs=3):
+    mae_values, mape_values, mse_values, rmse_values, r2_values = [], [], [], [], []
+    n_epochs_values = []
+
+    for i in range(n_runs):
+        tmp = df.copy().sort_values("FECHA")
+
+        deleted_sample = test_size * (i + 1)  # move cutoff back each run
+        if deleted_sample > 0:
+            tmp = tmp.iloc[:-deleted_sample]
+
+        y_true, y_pred, out = run_transformer_xai(
+            df=tmp,
+            target_col=target_col,
+            window_size=window_size,
+            test_size=test_size,
+            batch_size=batch_size,
+            d_model=d_model,
+            n_head=n_head,
+            num_layers=num_layers,
+            epoch_number=epoch_number,
+            lr=lr,
+            dropout=dropout,
+            device=device,
+            seed=seed,
+            optimizer_type=optimizer_type,
+            weight_decay=weight_decay,
+            early_stop=early_stop,
+            patience=patience,
+            min_delta=min_delta,
+        )
+
+        mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
+        
+
+        mae_values.append(mae)
+        mape_values.append(mape)
+        mse_values.append(mse)
+        rmse_values.append(rmse)
+        r2_values.append(r2)
+
+        # epochs_run is out[4] per your return: [model, X_test_compat, X_train_compat, feature_cols, epochs_run]
+        n_epochs_values.append(out[5])
+
+    mean_epochs = float(np.mean(n_epochs_values)) if n_epochs_values else np.nan
+
+    return (float(np.mean(mae_values)),
+            float(np.mean(mape_values)),
+            float(np.mean(mse_values)),
+            float(np.mean(rmse_values)),
+            float(np.mean(r2_values)),
+            mean_epochs,
+            float(np.std(mape_values)),
+            out, y_true, y_pred)
 
 
 def run_lstm(df, target_col, window_size, test_size, batch_size,

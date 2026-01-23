@@ -23,8 +23,9 @@ df = pd.read_csv("weekly_chile_data.csv")
 df["FECHA"] = pd.to_datetime(df["FECHA"])
 df = df.sort_values("FECHA")
 
-target_cols = ["FE", "NAE","NAW","NE","SE","SAW","SAE"] #I can rerun NAE as it crashed at 97 iterations
+target_cols = ["FE", "NAE","NAW","NE","SE","SAW","SAE"]
 # target_cols = ["NAW", "NE", "SE", "SAW", "SAE"]
+target_cols = ["NAW", "NE", "SE", "SAW", "SAE"]
 for target_col in target_cols:
 
 
@@ -32,7 +33,7 @@ for target_col in target_cols:
     minimize = True
     country = "chile"
 
-    patience = 100
+    patience = 75
     min_delta = 1e-5
     seed = 1048596
 
