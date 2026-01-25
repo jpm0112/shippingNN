@@ -26,6 +26,7 @@ df = df.sort_values("FECHA")
 target_cols = ["FE", "NAE","NAW","NE","SE","SAW","SAE"]
 # target_cols = ["NAW", "NE", "SE", "SAW", "SAE"]
 target_cols = ["NAW", "NE", "SE", "SAW", "SAE"]
+target_cols = ["SAE", "SAW", "SE", "NE", "NAW"]
 for target_col in target_cols:
 
 

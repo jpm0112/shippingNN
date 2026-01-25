@@ -95,7 +95,7 @@ for target_col in target_cols:
         try:
 
             tmp = df.copy().sort_values("FECHA")
-            deleted_sample = int(params["test_size"])
+            deleted_sample = int(params["test_size"])*3
             if deleted_sample > 0:
                 tmp = tmp.iloc[:-deleted_sample * number_test_sets]
             mae, mape, mse, rmse, r2, epochs_ran, sd = run_sarima_with_for(

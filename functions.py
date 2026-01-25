@@ -1788,7 +1788,6 @@ def run_darts_tft(df,
         value_cols=target_col,
     )
 
-
     # ---- 1b. Build past covariates from all other columns ----
     feature_cols = [c for c in df.columns if c not in ["FECHA", target_col]]
     past_cov = TimeSeries.from_dataframe(
@@ -1799,7 +1798,6 @@ def run_darts_tft(df,
 
     # ---- 2. Train/val split ----
     # ---- 2. Train/val split ----
-
 
     # We need enough data for the Input Window + Output Horizon + (N samples - 1)
     num_val_samples = 12
@@ -1899,145 +1897,6 @@ def run_darts_tft(df,
     return true_vals, pred_vals, out_list
 
 
-def run_darts_tft2(df,
-                  target_col,
-                  test_size,
-                  window_size,
-                  hidden_size,
-                  lstm_layers,
-                  num_attention_heads,
-                  dropout,
-                  batch_size,
-                  n_epochs,
-                  lr,
-                  grad_clip=1.0,
-                  patience=20,
-                  min_delta=1e-4,
-                  seed=1048596):
-    """
-    Trains a Darts TFT model using target + all other columns as past covariates.
-    Returns true_vals, pred_vals, [model, train, val, scaler_target, scaler_cov, epochs_ran].
-    """
-    seed_everything(seed, workers=True)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    # if torch.cuda.is_available():
-    #     print("Running with cuda")
-    #     torch.cuda.manual_seed_all(seed)
-    #     torch.backends.cudnn.deterministic = True
-    #     torch.backends.cudnn.benchmark = False
-    #     torch.use_deterministic_algorithms(True)
-    #     torch.set_float32_matmul_precision('highest')
-
-    output_chunk_length = test_size
-
-    # ---- 1. Build target series ----
-    series = TimeSeries.from_dataframe(
-        df,
-        time_col="FECHA",
-        value_cols=target_col,
-    )
-
-    # ---- 1b. Build past covariates from all other columns ----
-    feature_cols = [c for c in df.columns if c not in ["FECHA", target_col]]
-    past_cov = TimeSeries.from_dataframe(
-        df,
-        time_col="FECHA",
-        value_cols=feature_cols,
-    )
-
-    # ---- 2. Train/val split ----
-    val_size = test_size + window_size
-    train = series[:-val_size]
-    val = series[-val_size:]
-
-    train_past = past_cov[:-val_size]
-    # full past covariates (for prediction later)
-    full_past = past_cov
-
-    # ---- 3. Scaling ----
-    scaler_y = Scaler()
-    train_scaled = scaler_y.fit_transform(train)
-    val_scaled = scaler_y.transform(val)
-
-    scaler_cov = Scaler()
-    train_past_scaled = scaler_cov.fit_transform(train_past)
-    full_past_scaled = scaler_cov.transform(full_past)
-    val_past_scaled = full_past_scaled[-val_size:]
-
-    # ---- 4. Early stopping ----
-    early_stop = pl.callbacks.EarlyStopping(
-        monitor="val_loss",
-        patience=patience,
-        min_delta=min_delta,
-        mode="min",
-    )
-
-    # ---- 5. Model ----
-    model = TFTModel(
-        input_chunk_length=window_size,
-        output_chunk_length=output_chunk_length,
-        hidden_size=hidden_size,
-        lstm_layers=lstm_layers,
-        num_attention_heads=num_attention_heads,
-        dropout=dropout,
-        batch_size=batch_size,
-        n_epochs=n_epochs,
-        add_relative_index=True,
-        add_encoders={
-            "datetime_attribute": {
-                "past": ["weekofyear"],
-                "future": ["weekofyear"],
-            },
-            "cyclic": {
-                "past": ["weekofyear"],
-                "future": ["weekofyear"],
-            },
-        },
-        random_state=seed,
-        likelihood=None,
-        optimizer_kwargs={"lr": lr},
-        pl_trainer_kwargs={
-            "accelerator": "gpu" if torch.cuda.is_available()
-            else "mps" if torch.backends.mps.is_available()
-            else "cpu",
-            "callbacks": [early_stop],
-            "gradient_clip_val": grad_clip,
-            "gradient_clip_algorithm": "norm",
-        },
-    )
-
-    # ---- 6. Fit ----
-    model.fit(
-        train_scaled,
-        past_covariates=train_past_scaled,
-        val_series=val_scaled,
-        val_past_covariates=val_past_scaled,
-        verbose=True,
-        dataloader_kwargs={"num_workers": 0},
-    )
-
-    # ---- 7. Epochs actually run ----
-    epochs_ran = model.trainer.current_epoch + 1
-
-    # ---- 8. Forecast ----
-    # Use full_past_scaled so model has covariates over history + horizon
-    pred_scaled = model.predict(
-        n=test_size,
-        past_covariates=full_past_scaled,
-        dataloader_kwargs={"num_workers": 0},
-    )
-    pred = scaler_y.inverse_transform(pred_scaled)
-
-    val_last = val[-test_size:]
-
-    true_vals = val_last.values().flatten().tolist()
-    pred_vals = pred.values().flatten().tolist()
-    out_list = [model, train, val, scaler_y, scaler_cov, epochs_ran, feature_cols]
-
-    return true_vals, pred_vals, out_list
-
-
 def run_darts_tft_with_for(df,
               target_col,
               test_size,
@@ -2098,6 +1957,68 @@ def run_darts_tft_with_for(df,
     return (np.mean(mae_values), np.mean(mape_values), np.mean(mse_values),
             np.mean(rmse_values), np.mean(r2_values), mean_epochs, np.std(mape_values))
 
+
+def run_darts_tft_with_for_xai(df,
+                           target_col,
+                           test_size,
+                           window_size,
+                           hidden_size,
+                           lstm_layers,
+                           num_attention_heads,
+                           dropout,
+                           batch_size,
+                           n_epochs,
+                           lr,
+                           grad_clip=1.0,
+                           patience=20,
+                           min_delta=1e-4,
+                           seed=1048596,
+                           sample_sets=3):
+    mae_values = []
+    mape_values = []
+    mse_values = []
+    rmse_values = []
+    r2_values = []
+    n_epochs_values = []
+
+    for i in range(sample_sets):
+        # Run model
+        tmp = df.copy().sort_values("FECHA")
+        deleted_sample = test_size * (i + 1)  # delete the test samples from the end
+        if deleted_sample > 0:
+            tmp = tmp.iloc[:-deleted_sample]
+        y_true, y_pred, out = run_darts_tft(
+            tmp,
+            target_col,
+            test_size,
+            window_size,
+            hidden_size,
+            lstm_layers,
+            num_attention_heads,
+            dropout,
+            batch_size,
+            n_epochs,
+            lr,
+            grad_clip,
+            patience,
+            min_delta,
+            seed
+        )
+
+        mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
+
+        mae_values.append(mae)
+        mape_values.append(mape)
+        mse_values.append(mse)
+        rmse_values.append(rmse)
+        r2_values.append(r2)
+        n_epochs_values.append(out[5])
+    print(mape_values)
+
+
+    mean_epochs = np.mean(n_epochs_values)  # dummy values for errors
+    return (np.mean(mae_values), np.mean(mape_values), np.mean(mse_values),
+            np.mean(rmse_values), np.mean(r2_values), mean_epochs, np.std(mape_values), out, y_true, y_pred)
 
 
 def clean_gpu():
