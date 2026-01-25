@@ -4,33 +4,45 @@ import matplotlib.pyplot as plt
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
-from functions import error_metrics
+from functions import error_metrics, run_sarima_with_for
 from datetime import datetime
 from functions import run_sarima
 
 # Load and prepare data
-df = pd.read_csv("chile_data.csv")
-df["FECHA"] = pd.to_datetime(df["FECHA"] + "-1", format="%Y-%W-%w")
-
-df = df.sort_values('FECHA')
+df = pd.read_csv("weekly_chile_data.csv")
+df["FECHA"] = pd.to_datetime(df["FECHA"])
+df = df.sort_values("FECHA").reset_index(drop=True)
 
 # Parameters
-target_col = 'FE'
+target_col = 'SE'
 # target_col = "TOTAL_TEUS"
-test_size = 24
-a = 1
-b = 1
-c = 1
-d = 1
-e = 1
-f = 1
-g = 3
+test_size = 4
+target_col = 'SAE'
+p, d, q, P, D, Q, m = 0, 0, 0, 1, 1, 1, 52 #SAE
+target_col = 'SAW'
+p, d, q, P, D, Q, m = 0, 0, 4, 0, 1, 0, 52 # SAW
+target_col = 'SE'
+p, d, q, P, D, Q, m = 0, 0, 0, 1, 1, 1, 52 #SE
+target_col = 'NE'
+p, d, q, P, D, Q, m = 1, 1, 3, 0, 1, 1, 52 #NE
+target_col = 'NAW'
+p, d, q, P, D, Q, m = 1, 2, 3, 2, 0, 0, 52 #NAW
+target_col = 'NAE'
+p, d, q, P, D, Q, m = 3, 0, 2, 2, 0, 0, 52 #NAE
+target_col = 'FE'
+p, d, q, P, D, Q, m = 1, 2, 2, 0, 0, 1, 52 #FE
 
-real, preds = run_sarima(df, target_col, test_size, a, b, c, d, e, f, g)
 
-
-
-
+mae, mape, mse, rmse, r2, epochs_ran, sd = run_sarima_with_for(df,
+                                                               target_col,
+                                                               test_size,
+                                                               p, d, q, P, D, Q, m,
+                                                               seed=1048596,
+                                                               n_runs=3)
+print(target_col)
+print(mape)
+print(mae)
+# ============================================================
 
 
 
