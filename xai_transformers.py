@@ -243,7 +243,7 @@ plt.ylabel(target_col)
 plt.legend()
 plt.grid(True, linestyle="--", linewidth=0.5)
 plt.tight_layout()
-plt.savefig("plots/transformers_prediction.png", dpi=200)
+plt.savefig(f"plots/transformers_prediction_{target_col}_{test_size}.png", dpi=200)
 
 H = test_size  # 4
 HORIZON_TO_EXPLAIN = H - 1  # last step (3). Change to 0..3 if you want.
@@ -348,7 +348,7 @@ print(exp.as_list())
 
 fig = exp.as_pyplot_figure()
 plt.tight_layout()
-plt.savefig(f"plots/transformer_lime_last_point_{target_col}.png", dpi=200)
+plt.savefig(f"plots/transformer_lime_last_point_{target_col}_{test_size}.png", dpi=200)
 
 # ============================================================
 # BUILD X_test (Transformer-style) + GLOBAL LIME
@@ -643,7 +643,7 @@ shap_exp = shap.Explanation(
 shap.plots.waterfall(shap_exp, max_display=12, show=False)
 plt.tight_layout(rect=[0.05, 0.05, 0.95, 0.95])
 plt.savefig(
-    f"plots/shap_waterfall_{target_col}.png",
+    f"plots/shap_waterfall_{target_col}_{test_size}.png",
     dpi=200,
     bbox_inches="tight"
 )
@@ -783,23 +783,23 @@ shap_exp = shap.Explanation(
 shap.plots.waterfall(shap_exp, max_display=12, show=False)
 plt.tight_layout()
 plt.savefig(
-    f"plots/shap_waterfall_horizon_mean_{target_col}.png",
+    f"plots/shap_waterfall_horizon_mean_{target_col}_{test_size}.png",
     dpi=200,
     bbox_inches="tight"
 )
 plt.close()
 
-print("✅ Saved:", f"plots/shap_waterfall_horizon_mean_{target_col}.png")
+print("✅ Saved:", f"plots/shap_waterfall_horizon_mean_{target_col}_{test_size}.png")
 print("Base(mean over horizon) =", base_value)
 print("Final(mean over horizon) =", final_value)
 print("Check additivity:", base_value + phi_agg.sum(), "≈", final_value)
 
 # Parameters beeswarm
 
-N_GLOBAL = 20  # increase if you want smoother beeswarm
-n_perm = 3
+N_GLOBAL = 80 # increase if you want smoother beeswarm
+n_perm = 30  # permutations per explanation
 
-HORIZON = 3  # 0,1,2,3 → choose which week to explain
+HORIZON = 11  # 0,1,2,3 → choose which week to explain
 
 # ============================================================
 # BUILD MANY WINDOWS FOR GLOBAL EXPLANATION
@@ -936,7 +936,7 @@ fig = plt.gcf()
 fig.set_size_inches(10, 6)
 plt.tight_layout()
 plt.savefig(
-    f"plots/shap_beeswarm_h{HORIZON + 1}_{target_col}.png",
+    f"plots/shap_beeswarm_h{HORIZON + 1}_{target_col}_{test_size}.png",
     dpi=200,
     bbox_inches="tight"
 )
@@ -968,46 +968,46 @@ F = 1 + len(feature_cols)
 # ------------------------------------------------------------
 
 # rebuild covariate window (Transformer input)
-arr = x0.reshape(T, F)
-cov_win = arr[:, 1:]  # Transformer only sees covariates
-
-X_attn = torch.tensor(
-    cov_win,
-    dtype=torch.float32
-).unsqueeze(0).to(device)
-
-# get attention maps
-attn_maps = get_attention_maps(model, X_attn)
-
-# expected shape: attn_maps[layer] -> (heads, T, T)
-print("Attention map shapes:")
-for l, A in enumerate(attn_maps):
-    print(f"Layer {l}: {A.shape}")
+# arr = x0.reshape(T, F)
+# cov_win = arr[:, 1:]  # Transformer only sees covariates
+#
+# X_attn = torch.tensor(
+#     cov_win,
+#     dtype=torch.float32
+# ).unsqueeze(0).to(device)
+#
+# # get attention maps
+# attn_maps = get_attention_maps(model, X_attn)
+#
+# # expected shape: attn_maps[layer] -> (heads, T, T)
+# print("Attention map shapes:")
+# for l, A in enumerate(attn_maps):
+#     print(f"Layer {l}: {A.shape}")
 
 # ------------------------------------------------------------
 # 2) PLOT SINGLE HEAD ATTENTION
 # ------------------------------------------------------------
 
-A_head = attn_maps[LAYER_TO_PLOT][0, HEAD_TO_PLOT].cpu().numpy()
-
-plt.figure(figsize=(8, 6))
-sns.heatmap(
-    A_head,
-    cmap="viridis",
-    xticklabels=False,
-    yticklabels=False
-)
-plt.title(
-    f"Attention Map – Layer {LAYER_TO_PLOT}, Head {HEAD_TO_PLOT}"
-)
-plt.xlabel("Key time step (past)")
-plt.ylabel("Query time step")
-plt.tight_layout()
-plt.savefig(
-    f"{SAVE_DIR}/attention_single_layer{LAYER_TO_PLOT}_head{HEAD_TO_PLOT}_{target_col}.png",
-    dpi=200
-)
-plt.close()
+# A_head = attn_maps[LAYER_TO_PLOT][0, HEAD_TO_PLOT].cpu().numpy()
+#
+# plt.figure(figsize=(8, 6))
+# sns.heatmap(
+#     A_head,
+#     cmap="viridis",
+#     xticklabels=False,
+#     yticklabels=False
+# )
+# plt.title(
+#     f"Attention Map – Layer {LAYER_TO_PLOT}, Head {HEAD_TO_PLOT}"
+# )
+# plt.xlabel("Key time step (past)")
+# plt.ylabel("Query time step")
+# plt.tight_layout()
+# plt.savefig(
+#     f"{SAVE_DIR}/attention_single_layer{LAYER_TO_PLOT}_head{HEAD_TO_PLOT}_{target_col}.png",
+#     dpi=200
+# )
+# plt.close()
 
 # ------------------------------------------------------------
 # 3) PLOT MEAN ATTENTION (HEADS AVERAGED)
@@ -1119,84 +1119,84 @@ plt.show()
 # HORIZON × PAST ATTENTION
 # ============================================================
 
-LAYER = -1
-T = window_size
-H = test_size
-F = 1 + len(feature_cols)
-ATTN_H = np.zeros((H, T), dtype=float)
-
-for i in range(N_GLOBAL):
-    arr = X_global[i].reshape(T, F)
-    cov_win = arr[:, 1:]
-
-    X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
-
-    with torch.no_grad():
-        attn_maps = get_attention_maps(model, X)
-        A = attn_maps[LAYER_TO_PLOT][0].mean(dim=0).cpu().numpy()  # (T,T)
-
-    for h in range(H):
-        ATTN_H[h, :] += A[-1, :]  # <-- explicit row add
-
-ATTN_H /= N_GLOBAL
-
-plt.figure(figsize=(8, 4))
-sns.heatmap(
-    ATTN_H,
-    cmap="viridis",
-    yticklabels=[f"t+{i + 1}" for i in range(H)]
-)
-plt.xlabel("Past time step")
-plt.ylabel("Forecast horizon")
-plt.title("Attention: Forecast Horizon × Past Time")
-plt.tight_layout()
-plt.show()
-
-# for single heads:
-
-LAYER = -1
-HEAD = 1  # choose head
-ATTN_H = np.zeros((H, T), dtype=float)
-
-for i in range(N_GLOBAL):
-    arr = X_global[i].reshape(T, F)
-    cov_win = arr[:, 1:]
-
-    X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
-
-    with torch.no_grad():
-        attn_maps = get_attention_maps(model, X)
-        # (batch, heads, T, T)
-        A = attn_maps[LAYER][0, HEAD].cpu().numpy()
-
-    for h in range(H):
-        ATTN_H[h, :] += A[-1, :]
-
-ATTN_H /= N_GLOBAL
-
-plt.figure(figsize=(8, 4))
-sns.heatmap(
-    ATTN_H,
-    cmap="viridis",
-    yticklabels=[f"t+{i + 1}" for i in range(H)],
-    xticklabels=False
-)
-plt.xlabel("Past time step")
-plt.ylabel("Forecast horizon")
-plt.title(f"Attention (Layer {LAYER}, Head {HEAD})")
-plt.tight_layout()
-plt.show()
-
-past_importance = ATTN_GLOBAL_MEAN.mean(axis=0)
-
-plt.figure(figsize=(8, 3))
-plt.plot(past_importance)
-plt.gca().invert_xaxis()
-plt.xlabel("Lag (weeks ago)")
-plt.ylabel("Mean attention weight")
-plt.title("Historical importance profile (encoder attention)")
-plt.tight_layout()
-plt.show()
+# LAYER = -1
+# T = window_size
+# H = test_size
+# F = 1 + len(feature_cols)
+# ATTN_H = np.zeros((H, T), dtype=float)
+#
+# for i in range(N_GLOBAL):
+#     arr = X_global[i].reshape(T, F)
+#     cov_win = arr[:, 1:]
+#
+#     X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+#
+#     with torch.no_grad():
+#         attn_maps = get_attention_maps(model, X)
+#         A = attn_maps[LAYER_TO_PLOT][0].mean(dim=0).cpu().numpy()  # (T,T)
+#
+#     for h in range(H):
+#         ATTN_H[h, :] += A[-1, :]  # <-- explicit row add
+#
+# ATTN_H /= N_GLOBAL
+#
+# plt.figure(figsize=(8, 4))
+# sns.heatmap(
+#     ATTN_H,
+#     cmap="viridis",
+#     yticklabels=[f"t+{i + 1}" for i in range(H)]
+# )
+# plt.xlabel("Past time step")
+# plt.ylabel("Forecast horizon")
+# plt.title("Attention: Forecast Horizon × Past Time")
+# plt.tight_layout()
+# plt.show()
+#
+# # for single heads:
+#
+# LAYER = -1
+# HEAD = 1  # choose head
+# ATTN_H = np.zeros((H, T), dtype=float)
+#
+# for i in range(N_GLOBAL):
+#     arr = X_global[i].reshape(T, F)
+#     cov_win = arr[:, 1:]
+#
+#     X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+#
+#     with torch.no_grad():
+#         attn_maps = get_attention_maps(model, X)
+#         # (batch, heads, T, T)
+#         A = attn_maps[LAYER][0, HEAD].cpu().numpy()
+#
+#     for h in range(H):
+#         ATTN_H[h, :] += A[-1, :]
+#
+# ATTN_H /= N_GLOBAL
+#
+# plt.figure(figsize=(8, 4))
+# sns.heatmap(
+#     ATTN_H,
+#     cmap="viridis",
+#     yticklabels=[f"t+{i + 1}" for i in range(H)],
+#     xticklabels=False
+# )
+# plt.xlabel("Past time step")
+# plt.ylabel("Forecast horizon")
+# plt.title(f"Attention (Layer {LAYER}, Head {HEAD})")
+# plt.tight_layout()
+# plt.show()
+#
+# past_importance = ATTN_GLOBAL_MEAN.mean(axis=0)
+#
+# plt.figure(figsize=(8, 3))
+# plt.plot(past_importance)
+# plt.gca().invert_xaxis()
+# plt.xlabel("Lag (weeks ago)")
+# plt.ylabel("Mean attention weight")
+# plt.title("Historical importance profile (encoder attention)")
+# plt.tight_layout()
+# plt.show()
 
 
 
@@ -1204,17 +1204,29 @@ plt.show()
 # HEAD SPECIALIZATION OVER TIME
 
 A = attn_maps[LAYER_TO_PLOT][0].cpu().numpy()  # (heads, T, T)
+
 # average over query dimension → importance over past time
 head_importance = A.mean(axis=2)  # (heads, T)
+
 plt.figure(figsize=(8, 4))
 sns.heatmap(
     head_importance,
     cmap="viridis",
-    yticklabels=[f"Head {i}" for i in range(head_importance.shape[0])]
+    yticklabels=[f"Head {i}" for i in range(head_importance.shape[0])],
+    xticklabels=False
 )
 plt.xlabel("Past time step")
 plt.ylabel("Attention head")
 plt.title("Attention head specialization over time")
 plt.tight_layout()
-plt.show()
+
+plt.savefig(
+    f"plots/attention_head_specialization_{target_col}_h{test_size}.png",
+    dpi=200,
+    bbox_inches="tight"
+)
+plt.close()
+
+
+
 
