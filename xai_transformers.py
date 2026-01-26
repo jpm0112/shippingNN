@@ -9,6 +9,7 @@ import torch
 import numpy as np
 from datetime import datetime
 from functions import error_metrics, run_transformer_xai, get_attention_maps, run_transformer_with_for_xai
+from functions import prettify, rename_specific
 import os
 
 import matplotlib.pyplot as plt
@@ -263,6 +264,7 @@ scaler_y = out[3]
 scaler_cov = out[4]
 feature_cols = out[6]
 
+
 # Ensure datetime (CRITICAL)
 df["FECHA"] = pd.to_datetime(df["FECHA"])
 
@@ -308,11 +310,12 @@ explainer = LimeTabularExplainer(
     X_lime,
     feature_names=feat_names,
     mode="regression",
-    verbose=False
+    verbose=False,
+    discretize_continuous=False,
 )
 
 
-# ✅ CORRECT predict_fn FOR TRANSFORMER
+
 def predict_fn(flat_X):
     flat_X = np.asarray(flat_X)
     preds = []
@@ -338,17 +341,69 @@ def predict_fn(flat_X):
     return np.array(preds)
 
 
-exp = explainer.explain_instance(
-    x0,
-    predict_fn,
-    num_features=20
+# ------------------------------------------------------------
+# LIME stability analysis for ONE prediction (x0)
+# ------------------------------------------------------------
+#
+# This LIME averages multiple runs to improve stability, while vanilla LIME uses a single random explanation.
+
+# This Lime also disables discretaization to improve stability (because of the gaussian perturbations).
+
+#flatten time series window
+
+
+
+N = 20  # number of LIME runs to average
+weights = []
+
+for s in range(N):
+    np.random.seed(1000 + s)
+    exp = explainer.explain_instance(
+        x0,
+        predict_fn,
+        num_features=20
+    )
+    weights.append(dict(exp.as_list()))
+
+df_local_lime = pd.DataFrame(weights).fillna(0)
+
+mean_importance = df_local_lime.mean().sort_values(ascending=False)
+mean_importance.index = rename_specific(
+    [prettify(n) for n in mean_importance.index]
 )
+std_importance = df_local_lime.std().sort_values(ascending=False)
 
-print(exp.as_list())
+print("Top mean LIME contributions:")
+print(mean_importance.head(15))
 
-fig = exp.as_pyplot_figure()
+print("\nTop unstable features (std):")
+print(std_importance.head(15))
+
+top_pos = mean_importance.sort_values(ascending=False).head(8)
+top_neg = mean_importance.sort_values().head(8)
+
+vals = mean_importance.copy()
+
+# sort by absolute contribution
+vals = vals.reindex(vals.abs().sort_values(ascending=False).index)
+
+# keep top-k
+vals = vals.head(15)
+vals.index = rename_specific([prettify(n) for n in vals.index])
+colors = ["green" if v > 0 else "red" for v in vals]
+
+plt.figure(figsize=(12, 6))
+plt.barh(vals.index, vals.values, color=colors)
+plt.axvline(0, color="black", linewidth=1)
+plt.gca().invert_yaxis()
+plt.title("Mean LIME contribution (sorted by |value|)")
 plt.tight_layout()
-plt.savefig(f"plots/transformer_lime_last_point_{target_col}_{test_size}.png", dpi=200)
+plt.savefig(
+    f"plots/local_lime_mean_abs_{target_col}_{test_size}.png",
+    dpi=200,
+    bbox_inches="tight"
+)
+plt.close()
 
 # ============================================================
 # BUILD X_test (Transformer-style) + GLOBAL LIME
@@ -416,7 +471,8 @@ explainer = LimeTabularExplainer(
     X_lime,
     feature_names=feature_names,
     mode="regression",
-    verbose=False
+    verbose=False,
+    discretize_continuous=False
 )
 
 # ------------------------------------------------------------
@@ -428,21 +484,45 @@ agg_pos = np.zeros(n_features)
 agg_neg = np.zeros(n_features)
 agg_abs = np.zeros(n_features)
 
+N_REPEATS = 10  # LIME runs per window
+
 for i in range(N):
-    exp_i = explainer.explain_instance(
-        X_lime[i],
-        predict_fn,
-        num_features=n_features
-    )
+    print(f"\nExplaining window {i + 1}/{N}...")
+    weights_i = []
 
-    class_id = list(exp_i.local_exp.keys())[0]
+    for s in range(N_REPEATS):
+        print(" LIME run", s + 1)
+        np.random.seed(1000 + s)
 
-    for feat_idx, weight in exp_i.local_exp[class_id]:
+        exp_i = explainer.explain_instance(
+            X_lime[i],
+            predict_fn,
+            num_features=n_features
+        )
+
+        weights_i.append(dict(exp_i.as_list()))
+
+    # average LIME weights for this window
+    df_i = pd.DataFrame(weights_i).fillna(0)
+    mean_weights = df_i.mean()
+
+    # accumulate averaged weights
+    for feat_name, weight in mean_weights.items():
+        feat_idx = feature_names.index(feat_name)
+
         if weight >= 0:
             agg_pos[feat_idx] += weight
         else:
             agg_neg[feat_idx] += weight
+
         agg_abs[feat_idx] += abs(weight)
+
+# ----------------------------------------
+# NORMALIZE across windows
+# ----------------------------------------
+agg_pos /= N
+agg_neg /= N
+agg_abs /= N
 
 lime_summary = pd.DataFrame({
     "feature": feature_names,
@@ -462,6 +542,10 @@ lime_summary = lime_summary.sort_values(
 print("\nTop 30 flat features:")
 print(lime_summary.head(30))
 
+lime_summary["feature_pretty"] = rename_specific(
+    [prettify(f) for f in lime_summary["feature"]]
+)
+
 # ------------------------------------------------------------
 # 5. Plot: feature × time
 # ------------------------------------------------------------
@@ -469,12 +553,18 @@ top = lime_summary.head(20)
 colors = ["green" if v >= 0 else "red" for v in top["signed"]]
 
 plt.figure(figsize=(9, 6))
-plt.barh(top["feature"], top["signed"], color=colors)
+plt.barh(top["feature_pretty"], top["signed"], color=colors)
 plt.gca().invert_yaxis()
 plt.xlabel("Signed contribution")
 plt.title("LIME – Feature × Time Contributions")
 plt.tight_layout()
-plt.show()
+
+plt.savefig(
+    f"plots/lime_feature_time_{target_col}_H{test_size}.png",
+    dpi=200,
+    bbox_inches="tight"
+)
+plt.close()
 
 # ------------------------------------------------------------
 # 6. Aggregate over TIME → base feature
@@ -493,56 +583,65 @@ agg_feat = (
     .sort_values("importance_abs", ascending=False)
 )
 
+agg_feat["base_feature_pretty"] = rename_specific(
+    [prettify(f) for f in agg_feat["base_feature"]]
+)
 topf = agg_feat.head(20)
 colors = ["green" if v >= 0 else "red" for v in topf["signed"]]
 
 plt.figure(figsize=(9, 6))
-plt.barh(topf["base_feature"], topf["signed"], color=colors)
+plt.barh(topf["base_feature_pretty"], topf["signed"], color=colors)
 plt.gca().invert_yaxis()
 plt.xlabel("Signed contribution (aggregated over time)")
 plt.title("LIME – Contributions by Feature")
 plt.tight_layout()
-plt.show()
 
-
-# ------------------------------------------------------------
-# 7. Aggregate by GROUP
-# ------------------------------------------------------------
-def feature_group(name: str) -> str:
-    if name.startswith("MEAN_FLETE"):
-        return "MEAN_FLETE*"
-    if name.startswith("SUM_TEU"):
-        return "SUM_TEU*"
-    if name.endswith("_price"):
-        return "price"
-    if name.endswith("_weekly_pct_change"):
-        return "pct_change"
-    if name.endswith("_volume"):
-        return "volume"
-    return "other"
-
-
-agg_feat["group"] = agg_feat["base_feature"].apply(feature_group)
-
-agg_group = (
-    agg_feat
-    .groupby("group", as_index=False)
-    .agg(
-        signed=("signed", "sum"),
-        importance_abs=("importance_abs", "sum"),
-    )
-    .sort_values("importance_abs", ascending=False)
+plt.savefig(
+    f"plots/lime_feature_agg_{target_col}_H{test_size}.png",
+    dpi=200,
+    bbox_inches="tight"
 )
+plt.close()
 
-colors = ["green" if v >= 0 else "red" for v in agg_group["signed"]]
-
-plt.figure(figsize=(8, 5))
-plt.barh(agg_group["group"], agg_group["signed"], color=colors)
-plt.gca().invert_yaxis()
-plt.xlabel("Signed contribution")
-plt.title("LIME – Contributions by Feature Group")
-plt.tight_layout()
-plt.show()
+#
+# # ------------------------------------------------------------
+# # 7. Aggregate by GROUP
+# # ------------------------------------------------------------
+# def feature_group(name: str) -> str:
+#     if name.startswith("MEAN_FLETE"):
+#         return "MEAN_FLETE*"
+#     if name.startswith("SUM_TEU"):
+#         return "SUM_TEU*"
+#     if name.endswith("_price"):
+#         return "price"
+#     if name.endswith("_weekly_pct_change"):
+#         return "pct_change"
+#     if name.endswith("_volume"):
+#         return "volume"
+#     return "other"
+#
+#
+# agg_feat["group"] = agg_feat["base_feature"].apply(feature_group)
+#
+# agg_group = (
+#     agg_feat
+#     .groupby("group", as_index=False)
+#     .agg(
+#         signed=("signed", "sum"),
+#         importance_abs=("importance_abs", "sum"),
+#     )
+#     .sort_values("importance_abs", ascending=False)
+# )
+#
+# colors = ["green" if v >= 0 else "red" for v in agg_group["signed"]]
+#
+# plt.figure(figsize=(8, 5))
+# plt.barh(agg_group["group"], agg_group["signed"], color=colors)
+# plt.gca().invert_yaxis()
+# plt.xlabel("Signed contribution")
+# plt.title("LIME – Contributions by Feature Group")
+# plt.tight_layout()
+# plt.show()
 
 # ------------------------------------------------------------
 # 8. Aggregate by TIME STEP
@@ -568,7 +667,13 @@ plt.xlabel("Lag (t)")
 plt.ylabel("Signed contribution")
 plt.title("LIME – Contribution by Lag")
 plt.tight_layout()
-plt.show()
+
+plt.savefig(
+    f"plots/lime_lag_contribution_{target_col}_H{test_size}.png",
+    dpi=200,
+    bbox_inches="tight"
+)
+plt.close()
 
 
 
@@ -637,7 +742,7 @@ shap_exp = shap.Explanation(
     values=phi,
     base_values=predict_fn(baseline.reshape(1, -1))[0],
     data=None,
-    feature_names=group_names
+    feature_names=rename_specific([prettify(n) for n in group_names])
 )
 
 shap.plots.waterfall(shap_exp, max_display=12, show=False)
@@ -777,7 +882,7 @@ final_value = predict_all_horizons(x0.reshape(1, -1))[0].mean()
 shap_exp = shap.Explanation(
     values=phi_agg,
     base_values=base_value,
-    feature_names=group_names
+    feature_names=rename_specific([prettify(n) for n in group_names])
 )
 
 shap.plots.waterfall(shap_exp, max_display=12, show=False)
@@ -796,8 +901,8 @@ print("Check additivity:", base_value + phi_agg.sum(), "≈", final_value)
 
 # Parameters beeswarm
 
-N_GLOBAL = 80 # increase if you want smoother beeswarm
-n_perm = 30  # permutations per explanation
+N_GLOBAL = 150 # increase if you want smoother beeswarm
+n_perm = 50  # permutations per explanation
 
 HORIZON = 11  # 0,1,2,3 → choose which week to explain
 
@@ -922,8 +1027,8 @@ import matplotlib.pyplot as plt
 
 exp = shap.Explanation(
     values=shap_vals,
-    data=feature_values,
-    feature_names=group_names
+    # data=feature_values,
+    feature_names=rename_specific([prettify(n) for n in group_names])
 )
 shap.summary_plot(
     exp,
@@ -941,6 +1046,10 @@ plt.savefig(
     bbox_inches="tight"
 )
 plt.close()
+
+
+
+
 
 # ============================================================
 # ATTENTION MAPS FOR TRANSFORMER
@@ -968,28 +1077,28 @@ F = 1 + len(feature_cols)
 # ------------------------------------------------------------
 
 # rebuild covariate window (Transformer input)
-# arr = x0.reshape(T, F)
-# cov_win = arr[:, 1:]  # Transformer only sees covariates
-#
-# X_attn = torch.tensor(
-#     cov_win,
-#     dtype=torch.float32
-# ).unsqueeze(0).to(device)
-#
-# # get attention maps
-# attn_maps = get_attention_maps(model, X_attn)
-#
-# # expected shape: attn_maps[layer] -> (heads, T, T)
-# print("Attention map shapes:")
-# for l, A in enumerate(attn_maps):
-#     print(f"Layer {l}: {A.shape}")
+arr = x0.reshape(T, F)
+cov_win = arr[:, 1:]  # Transformer only sees covariates
+
+X_attn = torch.tensor(
+    cov_win,
+    dtype=torch.float32
+).unsqueeze(0).to(device)
+
+# get attention maps
+attn_maps = get_attention_maps(model, X_attn)
+
+# expected shape: attn_maps[layer] -> (heads, T, T)
+print("Attention map shapes:")
+for l, A in enumerate(attn_maps):
+    print(f"Layer {l}: {A.shape}")
 
 # ------------------------------------------------------------
 # 2) PLOT SINGLE HEAD ATTENTION
 # ------------------------------------------------------------
 
-# A_head = attn_maps[LAYER_TO_PLOT][0, HEAD_TO_PLOT].cpu().numpy()
-#
+A_head = attn_maps[LAYER_TO_PLOT][0, HEAD_TO_PLOT].cpu().numpy()
+
 # plt.figure(figsize=(8, 6))
 # sns.heatmap(
 #     A_head,
@@ -1015,31 +1124,32 @@ F = 1 + len(feature_cols)
 
 A_mean = attn_maps[LAYER_TO_PLOT][0].mean(axis=0).cpu().numpy()
 
-plt.figure(figsize=(8, 6))
-sns.heatmap(
-    A_mean,
-    cmap="viridis",
-    xticklabels=False,
-    yticklabels=False
-)
-plt.title(
-    f"Mean Attention – Layer {LAYER_TO_PLOT}"
-)
-plt.xlabel("Key time step (past)")
-plt.ylabel("Query time step")
-plt.tight_layout()
-plt.savefig(
-    f"{SAVE_DIR}/attention_mean_layer{LAYER_TO_PLOT}_{target_col}.png",
-    dpi=200
-)
-plt.close()
+# plt.figure(figsize=(8, 6))
+# sns.heatmap(
+#     A_mean,
+#     cmap="viridis",
+#     xticklabels=False,
+#     yticklabels=False
+# )
+# plt.title(
+#     f"Mean Attention – Layer {LAYER_TO_PLOT}"
+# )
+# plt.xlabel("Key time step (past)")
+# plt.ylabel("Query time step")
+# plt.tight_layout()
+# plt.savefig(
+#     f"{SAVE_DIR}/attention_mean_layer{LAYER_TO_PLOT}_{target_col}.png",
+#     dpi=200
+# )
+# plt.close()
 
 print(" Saved single-window attention plots")
 
 # ============================================================
 # 4) GLOBAL ATTENTION (AVERAGED OVER MANY WINDOWS)
 # ============================================================
-
+N_GLOBAL = 80
+X_global = np.zeros((N_GLOBAL, T * F))
 ATTN_GLOBAL = []
 
 for i in range(N_GLOBAL):
@@ -1079,7 +1189,6 @@ plt.savefig(
 )
 plt.close()
 
-print("✅ Saved global attention map")
 
 # ============================================================
 # GLOBAL TIME × TIME ATTENTION (LAST LAYER, HEADS AVERAGED)
@@ -1120,30 +1229,127 @@ plt.show()
 
 # # ============================================================
 # HEAD SPECIALIZATION OVER TIME
+n_layers = len(attn_maps)
 
-A = attn_maps[LAYER_TO_PLOT][0].cpu().numpy()  # (heads, T, T)
+for layer in range(n_layers):
+    A = attn_maps[layer][0].cpu().numpy()  # (heads, T, T)
+    head_importance = A.mean(axis=2)  # (heads, T)
 
-# average over query dimension → importance over past time
-head_importance = A.mean(axis=2)  # (heads, T)
+    plt.figure(figsize=(8, 4))
+    sns.heatmap(
+        head_importance,
+        cmap="viridis",
+        yticklabels=[f"Head {i}" for i in range(head_importance.shape[0])],
+        xticklabels=False
+    )
+    plt.xlabel("Past time step")
+    plt.ylabel("Attention head")
+    plt.title(f"Head specialization – Layer {layer}")
+    plt.tight_layout()
+    plt.savefig(
+        f"plots/attention_head_specialization_layer{layer}_{target_col}_h{test_size}.png",
+        dpi=200,
+        bbox_inches="tight"
+    )
+    plt.close()
 
-plt.figure(figsize=(8, 4))
+
+
+
+LAYER = 1
+n_heads = attn_maps[LAYER].shape[1]
+for h in range(n_heads):
+    A = attn_maps[LAYER][0, h].cpu().numpy()  # (T_query, T_key)
+    var_query = np.mean(np.var(A, axis=0))  # varies by query
+    var_key = np.mean(np.var(A, axis=1))  # varies by key
+    print(
+        f"Head {h}: "
+        f"query-var = {var_query:.4e}, "
+        f"key-var = {var_key:.4e}"
+    )
+
+head_stats = []
+
+n_layers = len(attn_maps)
+
+for L in range(n_layers):
+    n_heads = attn_maps[L].shape[1]
+
+    for h in range(n_heads):
+        A = attn_maps[L][0, h].cpu().numpy()  # (T_query, T_key)
+
+        query_var = np.mean(np.var(A, axis=0))
+        key_var = np.mean(np.var(A, axis=1))
+        total_var = query_var + key_var
+
+        head_stats.append({
+            "layer": L,
+            "head": h,
+            "query_var": query_var,
+            "key_var": key_var,
+            "total_var": total_var
+        })
+
+df_heads = (
+    pd.DataFrame(head_stats)
+    .sort_values("total_var", ascending=False)
+    .reset_index(drop=True)
+)
+
+print(df_heads.head(10))
+
+# ONE HEAD ATTENTION OVER TIME OF ONE LAYER
+LAYER = 1  # which Transformer layer
+HEAD = 6  # which attention head
+
+# take ONE window (e.g., the first global window)
+arr = X_global[0].reshape(T, F)
+cov_win = arr[:, 1:]
+
+X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+
+with torch.no_grad():
+    attn_maps = get_attention_maps(model, X)
+    # attn_maps[layer]: (heads, T, T)
+    A_head = attn_maps[LAYER][0, HEAD].cpu().numpy()  # (T, T)
+
+plt.figure(figsize=(8, 6))
 sns.heatmap(
-    head_importance,
+    A_head,
     cmap="viridis",
-    yticklabels=[f"Head {i}" for i in range(head_importance.shape[0])],
-    xticklabels=False
+    linewidths=0,  # <<< removes white grid lines
+    linecolor=None,
+    cbar=True
 )
-plt.xlabel("Past time step")
-plt.ylabel("Attention head")
-plt.title("Attention head specialization over time")
-plt.tight_layout()
 
-plt.savefig(
-    f"plots/attention_head_specialization_{target_col}_h{test_size}.png",
-    dpi=200,
-    bbox_inches="tight"
+# thin ticks
+step = 5  # show one tick every 5 steps
+plt.xticks(
+    ticks=np.arange(0, T, step),
+    labels=np.arange(0, T, step),
+    rotation=0
 )
-plt.close()
+plt.yticks(
+    ticks=np.arange(0, T, step),
+    labels=np.arange(0, T, step),
+    rotation=0
+)
+
+plt.xlabel("Key time step (past)")
+plt.ylabel("Query time step")
+plt.title(f"Attention – Layer {LAYER}, Head {HEAD}")
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+
+
+
 
 
 
