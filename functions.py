@@ -2026,3 +2026,65 @@ def clean_gpu():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
+
+
+import re
+
+
+def prettify(name):
+    name = name.replace("_", " ").title()
+
+    translations = {
+        "Impuesto": "Tax",
+        "Flete": "Freight",
+        "Sum": "Total",
+        "Precio": "Price",
+        "Volumen": "Volume",
+        "Sae": "South America East",
+        "Saw": "South America West",
+        "Nae": "North America East",
+        "Naw": "North America West",
+        "Exw": "Ex-Works",
+        "Sin Clausula": "No Incoterm Clause",
+        "Ngfnaturalgas": "NGF Natural Gas",
+        'Zsfsoybean': "ZSF Soybean",
+        "TEU": "Total TEU"
+    }
+
+    for k, v in translations.items():
+        name = name.replace(k, v)
+
+    # 🔒 enforce acronyms safely
+    name = re.sub(r"\bFe\b", "FE", name)
+    name = re.sub(r"\bTeu\b", "TEU", name)
+    name = re.sub(r"\bCif\b", "CIF", name)
+    name = re.sub(r"\bEtf\b", "ETF", name)
+    name = re.sub(r"\bUs\$\b", "US$", name)
+
+    return name
+
+
+def rename_specific(names):
+    FIX = {
+        "Boat Price": "BOAT ETF Price",
+        "Boat Volume": "BOAT ETF Volume",
+        "Brent Oil Volume": "Brent Oil Volume",
+        "Ngf Natural Gas Volume": "NGF Natural Gas Volume",
+        "Us$ CIF Unit": "US$ CIF",
+        "Fob Per Teu": "FOB per TEU",
+        "Seguro Per Teu": "Insurance per TEU",
+        "Clp Price": "CLP Price",
+        "Cny Price": "CNY Price",
+        "Ne": "NE",
+        "Se": "SE",
+        "FE": "FE Mean Rate",
+        "Freight Per TEU": "Total Mean Freight per TEU",
+        "Csi300 Volume": "CSI300 Volume",
+        "TEU": "Total TEU",
+
+    }
+
+    out = []
+    for n in names:
+        out.append(FIX.get(n, n))
+    return out
