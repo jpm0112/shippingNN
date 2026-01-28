@@ -1274,7 +1274,7 @@ def run_transformer_with_for_xai(df,
         )
 
         mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
-        
+
 
         mae_values.append(mae)
         mape_values.append(mape)
