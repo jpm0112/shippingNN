@@ -1,3 +1,7 @@
+import os
+
+
+
 import pandas as pd
 from functions import error_metrics, run_darts_tft_with_for_xai
 import matplotlib
@@ -10,6 +14,12 @@ import numpy as np
 from darts.explainability.tft_explainer import TFTExplainer
 import shap
 
+import torch
+
+print("torch version:", torch.__version__)
+print("CUDA available:", torch.cuda.is_available())
+print("CUDA version:", torch.version.cuda)
+print("GPU count:", torch.cuda.device_count())
 
 
 # ==== 1. Load your data ====
@@ -18,18 +28,21 @@ df["FECHA"] = pd.to_datetime(df["FECHA"])
 df = df.sort_values("FECHA").reset_index(drop=True)
 
 
-target_col = "SAE"
+target_col = "SAW"
 
-test_size = 4 # number of weeks to forecast
-window_size = 23
-hidden_size = 64
-lstm_layers = 2
+test_size = 12 # number of weeks to forecast
+window_size = 30
+hidden_size = 128
+lstm_layers = 3
 num_attention_heads = 4
-dropout = 0.166722297
-batch_size = 64
-lr = 0.000258799
+dropout = 0.358009424
+
+batch_size = 32
+lr = 0.00014387
+
 n_epochs = 2000
-grad_clip = 2.125473514
+grad_clip = 1.76653228
+
 patience = 100
 min_delta = 1e-5
 seed = 1048596
@@ -38,8 +51,8 @@ seed = 1048596
 
 deleted_sample = test_size*3  # delete the test samples from the end
 tmp = df.copy().sort_values("FECHA")
-if deleted_sample > 0:
-        tmp = tmp.iloc[:-deleted_sample]
+# if deleted_sample > 0:
+#         tmp = tmp.iloc[:-deleted_sample]
 
 start = datetime.now()
 # y_true, y_pred, out = run_darts_tft(tmp,target_col,test_size,window_size,hidden_size,lstm_layers,num_attention_heads,dropout,
@@ -47,8 +60,7 @@ start = datetime.now()
 # mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
 runtime = (datetime.now() - start).total_seconds()
 
-
-mae, mape, mse, rmse, r2, epochs_ran, sd, out, y_true, y_pred = run_darts_tft_with_for_xai(
+avg_mae, avg_mape, avg_mse, avg_rmse, avg_r2, epochs_ran, sd, out, y_true, y_pred = run_darts_tft_with_for_xai(
     df=tmp,
     target_col=target_col,
     test_size=test_size,

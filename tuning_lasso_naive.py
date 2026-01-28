@@ -26,7 +26,7 @@ for target_col in target_cols:
 
 
 
-    test_size = 12  # H
+    test_size = 4  # H
     window_size = 40  # n_lags
     n_splits = 10
     sample_sets = 3  # number of test sets (like your TFT function)
@@ -182,6 +182,7 @@ for target_col in target_cols:
         last_val = train_df[target_col].iloc[-1]
         preds = np.repeat(last_val, test_size)
         y_true = test_df[target_col].values
+        print("Naive last predictions:", preds)
         return y_true, preds
 
 
