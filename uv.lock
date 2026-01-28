@@ -166,6 +166,12 @@ wheels = [
 ]
 
 [[package]]
+name = "antlr4-python3-runtime"
+version = "4.9.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d19459005ca000b6e7012f2f1ca597746cbcd1fbfe5e/antlr4-python3-runtime-4.9.3.tar.gz", hash = "sha256:f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b", size = 117034 }
+
+[[package]]
 name = "appnope"
 version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1890,6 +1896,19 @@ wheels = [
 ]
 
 [[package]]
+name = "omegaconf"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "antlr4-python3-runtime" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/09/48/6388f1bb9da707110532cb70ec4d2822858ddfb44f1cdf1233c20a80ea4b/omegaconf-2.3.0.tar.gz", hash = "sha256:d5d4b6d29955cc50ad50c46dc269bcd92c6e00f5f90d23ab5fee7bfca4ba4cc7", size = 3298120 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e3/94/1843518e420fa3ed6919835845df698c7e27e183cb997394e4a670973a65/omegaconf-2.3.0-py3-none-any.whl", hash = "sha256:7b4df175cdb08ba400f45cae3bdcae7ba8365db4d165fc65fd04b050ab63b46b", size = 79500 },
+]
+
+[[package]]
 name = "opt-einsum"
 version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2924,6 +2943,7 @@ dependencies = [
     { name = "lime" },
     { name = "matplotlib" },
     { name = "numpy" },
+    { name = "omegaconf" },
     { name = "pre-commit" },
     { name = "pyarrow" },
     { name = "pytorch-forecasting" },
@@ -2931,6 +2951,7 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "statsmodels" },
+    { name = "tft-torch" },
 ]
 
 [package.metadata]
@@ -2944,6 +2965,7 @@ requires-dist = [
     { name = "lime", specifier = ">=0.2.0.1" },
     { name = "matplotlib", specifier = ">=3.9.4" },
     { name = "numpy", specifier = ">=2.0.2" },
+    { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pre-commit", specifier = ">=4.3" },
     { name = "pyarrow", specifier = ">=21" },
     { name = "pytorch-forecasting", specifier = ">=1.4.0" },
@@ -2951,6 +2973,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.7.1" },
     { name = "scipy", specifier = ">=1.16.1" },
     { name = "statsmodels", specifier = ">=0.14.5" },
+    { name = "tft-torch", specifier = ">=0.0.6" },
 ]
 
 [[package]]
@@ -3079,6 +3102,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/2b/c5/d4cc6e293fb837aaf9f76dd7745476aeba8ef7ef5146c3b3f9ee375fe7a5/tensorboardx-2.6.4.tar.gz", hash = "sha256:b163ccb7798b31100b9f5fa4d6bc22dad362d7065c2f24b51e50731adde86828", size = 4769801 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e0/1d/b5d63f1a6b824282b57f7b581810d20b7a28ca951f2d5b59f1eb0782c12b/tensorboardx-2.6.4-py3-none-any.whl", hash = "sha256:5970cf3a1f0a6a6e8b180ccf46f3fe832b8a25a70b86e5a237048a7c0beb18e2", size = 87201 },
+]
+
+[[package]]
+name = "tft-torch"
+version = "0.0.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "omegaconf" },
+    { name = "pandas" },
+    { name = "scikit-learn" },
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/da/b7/18eccc411d815fa71738da3c8f734aa90c5051ce52bc193030df1812b906/tft_torch-0.0.6.tar.gz", hash = "sha256:e6c3bb1f42cfa755956bb754cd29c624a551b399fc427df62c25b0d1ec2db15d", size = 24138 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/f3/67aacfbfea782852f95d6871e10efda2769f3c888d43784c05318b87ac9b/tft_torch-0.0.6-py3-none-any.whl", hash = "sha256:0cc4246c78636979b0657b1f5d957204b41bd04344200b9fcc2d00df4f41a21d", size = 21914 },
 ]
 
 [[package]]
