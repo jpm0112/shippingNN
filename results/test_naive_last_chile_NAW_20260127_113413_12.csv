@@ -1,0 +1,2 @@
+trial_index,test_size,window_size,hidden_size,lstm_layers,num_attention_heads,dropout,batch_size,lr,epochs,grad_clip,mae,mape,mse,rmse,r2,sd,runtime_s,started_at,epochs_ran
+0,12,,,,,,,,,,118.87389801099289,9.54335355516347,20375.88465878741,137.7342715628727,-2.9222539203401943,2.7156601614221647,0.0,2026-01-27T11:34:13,

@@ -98,7 +98,20 @@ weight_decay = 0.000179268
 # BEST SAW 4
 test_size = 4
 target_col = "SAW"
-window_size = 32
+window_size = 33
+batch_size = 128
+d_model = 32
+n_head = 2
+num_layers = 2  # lstm layers
+epoch_number = 2000
+lr = 0.000153194
+dropout = 0.575846442
+weight_decay = 8.08E-05
+
+# BEST SAWb 4
+test_size = 4
+target_col = "SAW"
+window_size = 33
 batch_size = 128
 d_model = 32
 n_head = 2
@@ -120,104 +133,104 @@ epoch_number = 2000
 lr = 0.000482691
 dropout = 0.517106545
 weight_decay = 7.75E-06
+#
 
-
-
-# BEST FE 12
-test_size = 12
-target_col = "FE"
-window_size = 28
-batch_size = 32
-d_model = 128
-n_head = 2
-num_layers = 4  # lstm layers
-epoch_number = 2000
-lr = 0.001
-dropout = 0.332641601
-weight_decay = 0.001
-
-
-# BEST NAE 12
-test_size = 12
-target_col = "NAE"
-window_size = 26
-batch_size = 32
-d_model = 64
-n_head = 2
-num_layers = 4  # lstm layers
-lr = 0.000187546
-dropout = 0.273919743
-weight_decay = 7.55E-06
-
-
-# BEST NAW 12
-test_size = 12
-target_col = "NAW"
-window_size = 51
-batch_size = 128
-d_model = 256
-n_head = 8
-num_layers = 4  # lstm layers
-lr = 0.00029803
-dropout = 0.165152428
-weight_decay = 5.62E-06
-
-
-# BEST NE 12
-test_size = 12
-target_col = "NE"
-window_size = 47
-batch_size = 32
-d_model = 64
-n_head = 2
-num_layers = 4  # lstm layers
-lr = 0.0004815
-dropout = 0.318221159
-weight_decay = 4.00E-05
-
-
-#BEST SE 12
-test_size = 12
-target_col = "SE"
-window_size = 50
-batch_size = 32
-d_model = 64
-n_head = 8
-num_layers = 4  # lstm layers
-lr = 0.000427606
-dropout = 0.444859662
-weight_decay = 1.50E-05
-
-# BEST SAW 12
-test_size = 12
-target_col = "SAW"
-window_size = 49
-batch_size = 128
-d_model = 256
-n_head = 4
-num_layers = 4  # lstm layers
-lr = 0.000551659
-dropout = 0.426466938
-weight_decay = 6.90E-05
+#
+# # BEST FE 12
+# test_size = 12
+# target_col = "FE"
+# window_size = 28
+# batch_size = 32
+# d_model = 128
+# n_head = 2
+# num_layers = 4  # lstm layers
+# epoch_number = 2000
+# lr = 0.001
+# dropout = 0.332641601
+# weight_decay = 0.001
+#
+#
+# # BEST NAE 12
+# test_size = 12
+# target_col = "NAE"
+# window_size = 26
+# batch_size = 32
+# d_model = 64
+# n_head = 2
+# num_layers = 4  # lstm layers
+# lr = 0.000187546
+# dropout = 0.273919743
+# weight_decay = 7.55E-06
+#
+#
+# # BEST NAW 12
+# test_size = 12
+# target_col = "NAW"
+# window_size = 51
+# batch_size = 128
+# d_model = 256
+# n_head = 8
+# num_layers = 4  # lstm layers
+# lr = 0.00029803
+# dropout = 0.165152428
+# weight_decay = 5.62E-06
+#
+#
+# # BEST NE 12
+# test_size = 12
+# target_col = "NE"
+# window_size = 47
+# batch_size = 32
+# d_model = 64
+# n_head = 2
+# num_layers = 4  # lstm layers
+# lr = 0.0004815
+# dropout = 0.318221159
+# weight_decay = 4.00E-05
+#
+#
+# #BEST SE 12
+# test_size = 12
+# target_col = "SE"
+# window_size = 50
+# batch_size = 32
+# d_model = 64
+# n_head = 8
+# num_layers = 4  # lstm layers
+# lr = 0.000427606
+# dropout = 0.444859662
+# weight_decay = 1.50E-05
+#
+# # BEST SAW 12
+# test_size = 12
+# target_col = "SAW"
+# window_size = 49
+# batch_size = 128
+# d_model = 256
+# n_head = 4
+# num_layers = 4  # lstm layers
+# lr = 0.000551659
+# dropout = 0.426466938
+# weight_decay = 6.90E-05
 
 # BEST SAE 12
-test_size = 12
-target_col = "SAE"
-window_size = 45
-batch_size = 64
-d_model = 256
-n_head = 8
-num_layers = 3  # lstm layers
-lr = 0.000496422
-dropout = 0.506098107
-weight_decay = 1.00E-06
+# test_size = 12
+# target_col = "SAE"
+# window_size = 45
+# batch_size = 64
+# d_model = 256
+# n_head = 8
+# num_layers = 3  # lstm layers
+# lr = 0.000496422
+# dropout = 0.506098107
+# weight_decay = 1.00E-06
 
 # ==============================
 
 # General parameters
 seed = 1048596
-patience = 200
-min_delta = 1e-5
+patience = 100
+min_delta = 1e-4
 epoch_number = 2000
 
 tmp = df.copy().sort_values("FECHA")
@@ -234,6 +247,8 @@ avg_mae, avg_mape, avg_mse, avg_rmse, avg_r2, avg_epochs_ran, sd, out, y_true, y
 )
 
 mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
+
+print(avg_mape)
 
 plt.figure(figsize=(12, 6))
 plt.plot(y_true, marker="o", label="Real")
@@ -333,7 +348,7 @@ def predict_fn(flat_X):
 
         # inverse-scale last step
         y_last = (
-                y_hat_scaled[-1] * (scaler_y.vmax - scaler_y.vmin)
+                y_hat_scaled[0] * (scaler_y.vmax - scaler_y.vmin)
                 + scaler_y.vmin
         )
         preds.append(y_last)
@@ -392,12 +407,14 @@ vals = vals.head(15)
 vals.index = rename_specific([prettify(n) for n in vals.index])
 colors = ["green" if v > 0 else "red" for v in vals]
 
-plt.figure(figsize=(12, 6))
+plt.figure(figsize=(8, 8))
 plt.barh(vals.index, vals.values, color=colors)
 plt.axvline(0, color="black", linewidth=1)
 plt.gca().invert_yaxis()
-plt.title("Mean LIME contribution (sorted by |value|)")
+plt.title("Mean LIME Contribution for a Single-Horizon Prediction", fontsize=14)
 plt.tight_layout()
+plt.yticks(fontsize=16)
+plt.xticks(fontsize=16)
 plt.savefig(
     f"plots/local_lime_mean_abs_{target_col}_{test_size}.png",
     dpi=200,
@@ -406,7 +423,7 @@ plt.savefig(
 plt.close()
 
 # ============================================================
-# BUILD X_test (Transformer-style) + GLOBAL LIME
+# BUILD X_test (Transformer-style) + GLOBAL LIME (MULTI-HORIZON)
 # ============================================================
 
 from lime.lime_tabular import LimeTabularExplainer
@@ -415,39 +432,37 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # ------------------------------------------------------------
-# 0. Build X_test manually (Transformer DOES NOT store it)
+# 0. Build X_test manually
 # ------------------------------------------------------------
-# X_test shape: (N, window_size, F)
-# F = 1 (target) + n_covariates
-
 cols_all = [target_col] + feature_cols
 F = len(cols_all)
 T = window_size
-N = test_size  # number of forecast origins you want to explain
+N = 12  # number of rolling windows
+H = test_size  # forecast horizon length
 
-# scale full series (same scalers used in training)
 series_scaled = scaler_y.transform(full_series)
 cov_scaled = scaler_cov.transform(full_cov)
 
 X_test_list = []
-
-# we explain the LAST test_size rolling windows
 last_idx = len(df) - 1
 
 for i in range(N):
     end = last_idx - i
     start = end - T + 1
 
-    start_time = df["FECHA"].iloc[start]
-    end_time = df["FECHA"].iloc[end]
+    y_win = series_scaled.slice(
+        df["FECHA"].iloc[start],
+        df["FECHA"].iloc[end]
+    ).values(copy=True)
 
-    y_win = series_scaled.slice(start_time, end_time).values(copy=True)  # (T,1)
-    cov_win = cov_scaled.slice(start_time, end_time).values(copy=True)  # (T,n_cov)
+    cov_win = cov_scaled.slice(
+        df["FECHA"].iloc[start],
+        df["FECHA"].iloc[end]
+    ).values(copy=True)
 
     X_test_list.append(np.concatenate([y_win, cov_win], axis=1))
 
-X_test = np.stack(X_test_list[::-1])  # (N,T,F) chronological order
-
+X_test = np.stack(X_test_list[::-1])  # (N,T,F)
 print("X_test shape:", X_test.shape)
 
 # ------------------------------------------------------------
@@ -456,7 +471,7 @@ print("X_test shape:", X_test.shape)
 X_lime = X_test.reshape(N, T * F)
 
 # ------------------------------------------------------------
-# 2. Feature names (MATCH flattening order!)
+# 2. Feature names
 # ------------------------------------------------------------
 feature_names = [
     f"{cols_all[j]}_t{T - 1 - t}"
@@ -475,54 +490,81 @@ explainer = LimeTabularExplainer(
     discretize_continuous=False
 )
 
+
 # ------------------------------------------------------------
-# 4. Aggregate LIME over all test windows
+# 3.5 Horizon-specific predictors
+# ------------------------------------------------------------
+def predict_fn_h(h):
+    def f(flat_X):
+        out = []
+        for i in range(flat_X.shape[0]):
+            arr = flat_X[i].reshape(T, F)
+            cov_win = arr[:, 1:]
+
+            X = torch.tensor(
+                cov_win, dtype=torch.float32
+            ).unsqueeze(0).to(device)
+
+            with torch.no_grad():
+                y_hat_scaled = model(X).cpu().numpy().flatten()
+
+            y = (
+                    y_hat_scaled[h] * (scaler_y.vmax - scaler_y.vmin)
+                    + scaler_y.vmin
+            )
+            out.append(y)
+
+        return np.array(out)
+
+    return f
+
+
+# ------------------------------------------------------------
+# 4. LIME per horizon, then average contributions
 # ------------------------------------------------------------
 n_features = X_lime.shape[1]
+agg_pos_h = np.zeros((H, n_features))
+agg_neg_h = np.zeros((H, n_features))
+agg_abs_h = np.zeros((H, n_features))
 
-agg_pos = np.zeros(n_features)
-agg_neg = np.zeros(n_features)
-agg_abs = np.zeros(n_features)
+N_REPEATS = 10
 
-N_REPEATS = 10  # LIME runs per window
+for h in range(H):
+    print(f"\n=== Explaining horizon {h + 1}/{H} ===")
+    predict_fn = predict_fn_h(h)
 
-for i in range(N):
-    print(f"\nExplaining window {i + 1}/{N}...")
-    weights_i = []
+    for i in range(N):
+        weights_i = []
 
-    for s in range(N_REPEATS):
-        print(" LIME run", s + 1)
-        np.random.seed(1000 + s)
+        for s in range(N_REPEATS):
+            np.random.seed(1000 + s)
 
-        exp_i = explainer.explain_instance(
-            X_lime[i],
-            predict_fn,
-            num_features=n_features
-        )
+            exp_i = explainer.explain_instance(
+                X_lime[i],
+                predict_fn,
+                num_features=n_features
+            )
+            weights_i.append(dict(exp_i.as_list()))
 
-        weights_i.append(dict(exp_i.as_list()))
+        df_i = pd.DataFrame(weights_i).fillna(0)
+        mean_weights = df_i.mean()
 
-    # average LIME weights for this window
-    df_i = pd.DataFrame(weights_i).fillna(0)
-    mean_weights = df_i.mean()
+        for feat_name, w in mean_weights.items():
+            idx = feature_names.index(feat_name)
 
-    # accumulate averaged weights
-    for feat_name, weight in mean_weights.items():
-        feat_idx = feature_names.index(feat_name)
+            if w >= 0:
+                agg_pos_h[h, idx] += w
+            else:
+                agg_neg_h[h, idx] += w
 
-        if weight >= 0:
-            agg_pos[feat_idx] += weight
-        else:
-            agg_neg[feat_idx] += weight
+            agg_abs_h[h, idx] += abs(w)
 
-        agg_abs[feat_idx] += abs(weight)
-
-# ----------------------------------------
-# NORMALIZE across windows
-# ----------------------------------------
-agg_pos /= N
-agg_neg /= N
-agg_abs /= N
+# ------------------------------------------------------------
+# 5. Average across horizons and windows
+# ------------------------------------------------------------
+agg_pos = agg_pos_h.mean(axis=0) / N
+agg_neg = agg_neg_h.mean(axis=0) / N
+agg_abs = agg_abs_h.mean(axis=0) / N
 
 lime_summary = pd.DataFrame({
     "feature": feature_names,
@@ -530,48 +572,38 @@ lime_summary = pd.DataFrame({
     "importance_pos": agg_pos,
     "importance_neg": agg_neg,
 })
-
-lime_summary["signed"] = (
-        lime_summary["importance_pos"] + lime_summary["importance_neg"]
-)
-
-lime_summary = lime_summary.sort_values(
-    "importance_abs", ascending=False
-)
-
-print("\nTop 30 flat features:")
-print(lime_summary.head(30))
+lime_summary["signed"] = lime_summary["importance_pos"] + lime_summary["importance_neg"]
+lime_summary = lime_summary.sort_values("importance_abs", ascending=False)
 
 lime_summary["feature_pretty"] = rename_specific(
     [prettify(f) for f in lime_summary["feature"]]
 )
 
 # ------------------------------------------------------------
-# 5. Plot: feature × time
+# 6. Feature × time plot
 # ------------------------------------------------------------
 top = lime_summary.head(20)
 colors = ["green" if v >= 0 else "red" for v in top["signed"]]
 
-plt.figure(figsize=(9, 6))
+plt.figure(figsize=(12, 8))
 plt.barh(top["feature_pretty"], top["signed"], color=colors)
 plt.gca().invert_yaxis()
-plt.xlabel("Signed contribution")
-plt.title("LIME – Feature × Time Contributions")
+plt.xlabel("Contribution (averaged across horizons)")
+plt.title("LIME – Feature-by-Time (Multi-Horizon Averaged)", fontsize=14)
 plt.tight_layout()
-
+plt.yticks(fontsize=14)
+plt.xticks(fontsize=14)
 plt.savefig(
-    f"plots/lime_feature_time_{target_col}_H{test_size}.png",
+    f"plots/global_lime_feature_time_{target_col}_H{test_size}.png",
     dpi=200,
     bbox_inches="tight"
 )
 plt.close()
 
 # ------------------------------------------------------------
-# 6. Aggregate over TIME → base feature
+# 7. Aggregate by FEATURE
 # ------------------------------------------------------------
-lime_summary["base_feature"] = (
-    lime_summary["feature"].str.rsplit("_t", n=1).str[0]
-)
+lime_summary["base_feature"] = lime_summary["feature"].str.rsplit("_t", n=1).str[0]
 
 agg_feat = (
     lime_summary
@@ -586,70 +618,30 @@ agg_feat = (
 agg_feat["base_feature_pretty"] = rename_specific(
     [prettify(f) for f in agg_feat["base_feature"]]
 )
+
 topf = agg_feat.head(20)
 colors = ["green" if v >= 0 else "red" for v in topf["signed"]]
 
-plt.figure(figsize=(9, 6))
+plt.figure(figsize=(12, 8))
 plt.barh(topf["base_feature_pretty"], topf["signed"], color=colors)
 plt.gca().invert_yaxis()
-plt.xlabel("Signed contribution (aggregated over time)")
-plt.title("LIME – Contributions by Feature")
+plt.xlabel("Contribution (averaged across horizons)")
+plt.yticks(fontsize=14)
+plt.xticks(fontsize=14)
+plt.title("LIME – Contributions by Feature (Multi-Horizon)", fontsize=14)
 plt.tight_layout()
-
 plt.savefig(
-    f"plots/lime_feature_agg_{target_col}_H{test_size}.png",
+    f"plots/global_lime_feature_agg_{target_col}_H{test_size}.png",
     dpi=200,
     bbox_inches="tight"
 )
 plt.close()
 
-#
-# # ------------------------------------------------------------
-# # 7. Aggregate by GROUP
-# # ------------------------------------------------------------
-# def feature_group(name: str) -> str:
-#     if name.startswith("MEAN_FLETE"):
-#         return "MEAN_FLETE*"
-#     if name.startswith("SUM_TEU"):
-#         return "SUM_TEU*"
-#     if name.endswith("_price"):
-#         return "price"
-#     if name.endswith("_weekly_pct_change"):
-#         return "pct_change"
-#     if name.endswith("_volume"):
-#         return "volume"
-#     return "other"
-#
-#
-# agg_feat["group"] = agg_feat["base_feature"].apply(feature_group)
-#
-# agg_group = (
-#     agg_feat
-#     .groupby("group", as_index=False)
-#     .agg(
-#         signed=("signed", "sum"),
-#         importance_abs=("importance_abs", "sum"),
-#     )
-#     .sort_values("importance_abs", ascending=False)
-# )
-#
-# colors = ["green" if v >= 0 else "red" for v in agg_group["signed"]]
-#
-# plt.figure(figsize=(8, 5))
-# plt.barh(agg_group["group"], agg_group["signed"], color=colors)
-# plt.gca().invert_yaxis()
-# plt.xlabel("Signed contribution")
-# plt.title("LIME – Contributions by Feature Group")
-# plt.tight_layout()
-# plt.show()
-
 # ------------------------------------------------------------
-# 8. Aggregate by TIME STEP
+# 8. Aggregate by TIME
 # ------------------------------------------------------------
 lime_summary["time"] = (
-    lime_summary["feature"]
-    .str.extract(r"_t(\d+)$")
-    .astype(int)
+    lime_summary["feature"].str.extract(r"_t(\d+)$").astype(int)
 )
 
 time_agg = (
@@ -659,17 +651,21 @@ time_agg = (
         signed=("signed", "sum"),
         importance_abs=("importance_abs", "sum"),
     )
-)
+).sort_values("time")
 
-plt.figure(figsize=(8, 4))
-plt.bar(time_agg["time"], time_agg["signed"])
-plt.xlabel("Lag (t)")
-plt.ylabel("Signed contribution")
-plt.title("LIME – Contribution by Lag")
+colors = ["green" if v >= 0 else "red" for v in time_agg["signed"]]
+
+plt.figure(figsize=(8, 8))
+plt.bar(time_agg["time"], time_agg["signed"], color=colors)
+plt.axhline(0, color="black", linewidth=1)
+plt.xlabel("Time lag (t)")
+plt.ylabel("Contribution")
+plt.yticks(fontsize=14)
+plt.xticks(fontsize=14)
+plt.title("LIME – Contribution by Time Lag (Multi-Horizon)", fontsize=14)
 plt.tight_layout()
-
 plt.savefig(
-    f"plots/lime_lag_contribution_{target_col}_H{test_size}.png",
+    f"plots/global_lime_time_lag_contribution_{target_col}_H{test_size}.png",
     dpi=200,
     bbox_inches="tight"
 )
@@ -677,16 +673,13 @@ plt.close()
 
 
 
-
-
-
-
-
-
-
-
-
+# ============================================================
 #SHAPLEY
+
+
+
+
+
 
 # ______________
 groups = {}
@@ -736,6 +729,17 @@ phi, group_names = permutation_shapley(
     n_perm=300
 )
 
+# find most informative horizon
+deltas = []
+
+for h in range(test_size):
+    pred_x = predict_fn_h(h)(x0.reshape(1, -1))[0]
+    pred_b = predict_fn_h(h)(baseline.reshape(1, -1))[0]
+    deltas.append(abs(pred_x - pred_b))
+
+best_h = int(np.argmax(deltas))
+print("Best horizon (0-based):", best_h, " | Δ =", deltas[best_h])
+
 import shap
 
 shap_exp = shap.Explanation(
@@ -746,7 +750,12 @@ shap_exp = shap.Explanation(
 )
 
 shap.plots.waterfall(shap_exp, max_display=12, show=False)
-plt.tight_layout(rect=[0.05, 0.05, 0.95, 0.95])
+
+# plt.title("SHAP Waterfall Plot", fontsize=14)
+# fontsize axis
+# plt.ylabel("Features", fontsize=14)
+# plt.xlabel("Contribution to Prediction", fontsize=14)
+# plt.tight_layout(rect=[0.05, 0.05, 0.95, 0.95])
 plt.savefig(
     f"plots/shap_waterfall_{target_col}_{test_size}.png",
     dpi=200,
@@ -904,7 +913,7 @@ print("Check additivity:", base_value + phi_agg.sum(), "≈", final_value)
 N_GLOBAL = 150 # increase if you want smoother beeswarm
 n_perm = 50  # permutations per explanation
 
-HORIZON = 11  # 0,1,2,3 → choose which week to explain
+HORIZON = test_size-1  # 0,1,2,3 → choose which week to explain
 
 # ============================================================
 # BUILD MANY WINDOWS FOR GLOBAL EXPLANATION
@@ -1022,30 +1031,55 @@ for i in range(N_GLOBAL):
 
         feature_values[i, j] = np.mean(vals)
 
+# ============================================================
+
 import shap
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
+# --- Build SHAP explanation ---
 exp = shap.Explanation(
     values=shap_vals,
-    # data=feature_values,
+    data=feature_values,
     feature_names=rename_specific([prettify(n) for n in group_names])
 )
+
+# --- SHAP beeswarm ---
 shap.summary_plot(
     exp,
     max_display=20,
     show=False,
-    color_bar=False  # <<< THIS FIXES IT
+    color_bar=False
 )
 
+# --- Manual legend for colors ---
+legend_elements = [
+    Line2D([0], [0], marker='o', color='w', label='Low feature value',
+           markerfacecolor='blue', markersize=8),
+    Line2D([0], [0], marker='o', color='w', label='High feature value',
+           markerfacecolor='red', markersize=8),
+]
+
+plt.legend(
+    handles=legend_elements,
+    loc='lower right',
+    frameon=False,
+    fontsize=10
+)
+
+# --- Figure formatting ---
 fig = plt.gcf()
 fig.set_size_inches(10, 6)
 plt.tight_layout()
+
+# --- Save ---
 plt.savefig(
     f"plots/shap_beeswarm_h{HORIZON + 1}_{target_col}_{test_size}.png",
     dpi=200,
     bbox_inches="tight"
 )
 plt.close()
+
 
 
 
@@ -1300,7 +1334,7 @@ print(df_heads.head(10))
 
 # ONE HEAD ATTENTION OVER TIME OF ONE LAYER
 LAYER = 1  # which Transformer layer
-HEAD = 6  # which attention head
+HEAD = 1  # which attention head
 
 # take ONE window (e.g., the first global window)
 arr = X_global[0].reshape(T, F)
@@ -1335,11 +1369,20 @@ plt.yticks(
     rotation=0
 )
 
-plt.xlabel("Key time step (past)")
-plt.ylabel("Query time step")
-plt.title(f"Attention – Layer {LAYER}, Head {HEAD}")
+plt.xlabel("Key time step (past)", fontsize=18)
+plt.ylabel("Query time step", fontsize=18)
+plt.title(f"Attention – Layer {LAYER}, Head {HEAD}", fontsize=18)
+plt.xticks(fontsize=18)
+plt.yticks(fontsize=18)
+# plt.legend(fontsize=18)  # optional: attention heatmaps usually don’t have a legend
 plt.tight_layout()
-plt.show()
+
+plt.savefig(
+    f"plots/single_attention_layer{LAYER}_head{HEAD}_{target_col}_H{test_size}.png",
+    dpi=200,
+    bbox_inches="tight"
+)
+plt.close()
 
 
 

@@ -18,18 +18,20 @@ df["FECHA"] = pd.to_datetime(df["FECHA"])
 df = df.sort_values("FECHA").reset_index(drop=True)
 
 
-target_col = "NAE"
+target_col = "SAE"
 
-test_size = 12 # number of weeks to forecast
-window_size = 27
-hidden_size = 64
-lstm_layers = 2
-num_attention_heads = 2
-dropout = 0.341350332
+# BEST SAE 4
+test_size = 4
+target_col = "SAE"
+window_size = 32
 batch_size = 32
-lr = 0.000429763952765133
-n_epochs = 2000
-grad_clip = 2.684042798
+d_model = 128
+n_head = 2
+num_layers = 4  # lstm layers
+epoch_number = 2000
+lr = 0.000482691
+dropout = 0.517106545
+weight_decay = 7.75E-06
 
 
 

@@ -1,3 +1,10 @@
+import os
+
+os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
+os.environ["PL_STRATEGY"] = "ddp_spawn"
+
+import re
+
 import numpy as np
 import torch, gc
 from lightning.pytorch import Trainer, seed_everything
@@ -504,8 +511,8 @@ def device_info(dev: torch.device) -> str:
         name = torch.cuda.get_device_name(idx)
         cap = torch.cuda.get_device_capability(idx)
         return f"CUDA[{idx}] {name} (cc {cap[0]}.{cap[1]})"
-    if dev.type == "mps":
-        return "Apple Metal (MPS)"
+    # if dev.type == "mps":
+    #     return "Apple Metal (MPS)"
     return "CPU"
 
 
@@ -1856,13 +1863,12 @@ def run_darts_tft(df,
         likelihood=None,
         optimizer_kwargs={"lr": lr},
         pl_trainer_kwargs={
-            "accelerator": "gpu" if torch.cuda.is_available()
-            else "mps" if torch.backends.mps.is_available()
-            else "cpu",
+            "gpus": 1,  # single GPU, no DDP
             "callbacks": [early_stop],
             "gradient_clip_val": grad_clip,
             "gradient_clip_algorithm": "norm",
-        },
+        }
+
     )
 
     # ---- 6. Fit ----
@@ -2018,7 +2024,8 @@ def run_darts_tft_with_for_xai(df,
 
     mean_epochs = np.mean(n_epochs_values)  # dummy values for errors
     return (np.mean(mae_values), np.mean(mape_values), np.mean(mse_values),
-            np.mean(rmse_values), np.mean(r2_values), mean_epochs, np.std(mape_values), out, y_true, y_pred)
+            np.mean(rmse_values), np.mean(r2_values), mean_epochs, np.std(mape_values),
+            out, y_true, y_pred)
 
 
 def clean_gpu():
@@ -2027,8 +2034,6 @@ def clean_gpu():
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
 
-
-import re
 
 
 def prettify(name):
@@ -2040,15 +2045,50 @@ def prettify(name):
         "Sum": "Total",
         "Precio": "Price",
         "Volumen": "Volume",
-        "Sae": "South America East",
-        "Saw": "South America West",
-        "Nae": "North America East",
-        "Naw": "North America West",
+        "Sae": "South America East Mean Rate",
+        "Saw": "South America West Mean Rate",
+        "Nae": "North America East Mean Rate",
+        "Naw": "North America West Mean Rate",
+        "Se": "South Europe Mean Rate",
+        "NE": "North Europe Mean Rate",
+        "Ne": "North Europe Mean Rate",
+        "FE": "Far East Mean Rate",
+        "SE": "South Europe Mean Rate",
+        "Sea": "SEA ETF",
         "Exw": "Ex-Works",
         "Sin Clausula": "No Incoterm Clause",
         "Ngfnaturalgas": "NGF Natural Gas",
         'Zsfsoybean': "ZSF Soybean",
-        "TEU": "Total TEU"
+        "TEU": "Total TEU",
+        "Ipsa": "IPSA",
+        "Zim": "ZIM",
+        "Gcfgold": "GCF Gold",
+        "Cys": "CYS",
+        "Csi300": "CSI300",
+        "Us$": "US$",
+        "Belgica": "Belgium",
+        "Francia": "France",
+        "Lefcattle": "LEF Cattle",
+        "Clp": "CLP",
+        "Fob": "FOB",
+        "Holanda": "Netherlands",
+        "Alemania": "Germany",
+        "Cantidad De Bulto": "Number of Packages",
+        "Ngf": "NGF",
+        "Espana": "Spain",
+        # "Boat": "BOAT ETF",
+        "Zcfcorn": "ZCF Corn",
+        "Seguro": "Insurance",
+        "SEGURO": "Insurance",
+        "Cma Cmg": "CMA CGM",
+        "Total TEU Cma Cmg": "CMA CGM",
+        "Total TEU Cma Cmg": "Total TEU CMA CGM",
+        "Contenedor": "Container",
+        "Otra": "Other Clause",
+        "Otro": "Other Countries",
+        "U S A": "USA",
+        "Usa": "USA",
+        "Refrigerado": "Refrigerated",
     }
 
     for k, v in translations.items():
@@ -2067,6 +2107,7 @@ def prettify(name):
 def rename_specific(names):
     FIX = {
         "Boat Price": "BOAT ETF Price",
+        "Boat Price T-0": "BOAT ETF Price T-0",
         "Boat Volume": "BOAT ETF Volume",
         "Brent Oil Volume": "Brent Oil Volume",
         "Ngf Natural Gas Volume": "NGF Natural Gas Volume",
@@ -2077,10 +2118,27 @@ def rename_specific(names):
         "Cny Price": "CNY Price",
         "Ne": "NE",
         "Se": "SE",
-        "FE": "FE Mean Rate",
+        "FE": "Far East Mean Rate",
         "Freight Per TEU": "Total Mean Freight per TEU",
         "Csi300 Volume": "CSI300 Volume",
         "TEU": "Total TEU",
+        "Partida Arancelaria": "Weekly Unique Tariff Codes",
+        "Total TEU Valparaiso X": "Total TEU Valparaiso",
+        "Total TEU Corea Del Sur": "Total TEU South Korea",
+        "Cantidad De Bulto": "Number of Packages",
+        "Contenedor Refrigerado": "Refrigerated Container",
+        "Zcfcorn": "ZCF Corn",
+        "Total TEU Cma Cmg": "Total TEU CMA CGM",
+        "Francia": "France",
+        "Lefcattle": "LEF Cattle",
+        "Contenedor": "Container",
+        "Sea": "SEA ETF",
+        "Otra": "Other Clause",
+        "Otro": "Other Countries",
+        "U S A": "USA",
+        "Total TEU Cma Cmg T0": "Total TEU CMA CGM T-0",
+        "Usa": "USA",
+
 
     }
 

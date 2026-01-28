@@ -18,7 +18,7 @@ from functions import (
 # ============================================================
 #  LOAD DATA
 # ============================================================
-initial_test_size = 24
+initial_test_size = 12
 number_test_sets = 3
 iterations = 100
 
@@ -35,7 +35,7 @@ for target_col in target_cols:
     metric = "mape"
     country = "chile"
 
-    patience = 100
+    patience = 200
     min_delta = 1e-5
     seed = 1048596
 
@@ -46,7 +46,7 @@ for target_col in target_cols:
     results_dir = Path("results")
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    csv_path = results_dir / f"transformer_trials_{country}_{target_col}_{timestamp}_{initial_test_size}.csv"
+    csv_path = results_dir / f"new_transformer_trials_{country}_{target_col}_{timestamp}_{initial_test_size}.csv"
     csv_file = csv_path.open("w", newline="")
     csv_writer = csv.DictWriter(csv_file, fieldnames=[
         "trial_index",
@@ -77,7 +77,7 @@ for target_col in target_cols:
         name=f"transformer_experiment_{target_col}",
         parameters=[
             {"name": "test_size", "type": "choice", "values": [initial_test_size], "value_type": "int"},
-            {"name": "window_size", "type": "range", "bounds": [26, 52], "value_type": "int"},
+            {"name": "window_size", "type": "range", "bounds": [8, 52], "value_type": "int"},
             {"name": "d_model", "type": "choice", "values": [32, 64, 128, 256], "value_type": "int"},
             {"name": "n_head", "type": "choice", "values": [2, 4, 8], "value_type": "int"},
             {"name": "num_layers", "type": "range", "bounds": [1, 4], "value_type": "int"},
