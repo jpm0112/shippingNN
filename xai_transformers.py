@@ -518,158 +518,158 @@ def predict_fn_h(h):
 
     return f
 
-
-# ------------------------------------------------------------
-# 4. LIME per horizon, then average contributions
-# ------------------------------------------------------------
-n_features = X_lime.shape[1]
-agg_pos_h = np.zeros((H, n_features))
-agg_neg_h = np.zeros((H, n_features))
-agg_abs_h = np.zeros((H, n_features))
-
-N_REPEATS = 10
-
-for h in range(H):
-    print(f"\n=== Explaining horizon {h + 1}/{H} ===")
-    predict_fn = predict_fn_h(h)
-
-    for i in range(N):
-        weights_i = []
-
-        for s in range(N_REPEATS):
-            np.random.seed(1000 + s)
-
-            exp_i = explainer.explain_instance(
-                X_lime[i],
-                predict_fn,
-                num_features=n_features
-            )
-            weights_i.append(dict(exp_i.as_list()))
-
-        df_i = pd.DataFrame(weights_i).fillna(0)
-        mean_weights = df_i.mean()
-
-        for feat_name, w in mean_weights.items():
-            idx = feature_names.index(feat_name)
-
-            if w >= 0:
-                agg_pos_h[h, idx] += w
-            else:
-                agg_neg_h[h, idx] += w
-
-            agg_abs_h[h, idx] += abs(w)
-
-# ------------------------------------------------------------
-# 5. Average across horizons and windows
-# ------------------------------------------------------------
-agg_pos = agg_pos_h.mean(axis=0) / N
-agg_neg = agg_neg_h.mean(axis=0) / N
-agg_abs = agg_abs_h.mean(axis=0) / N
-
-lime_summary = pd.DataFrame({
-    "feature": feature_names,
-    "importance_abs": agg_abs,
-    "importance_pos": agg_pos,
-    "importance_neg": agg_neg,
-})
-lime_summary["signed"] = lime_summary["importance_pos"] + lime_summary["importance_neg"]
-lime_summary = lime_summary.sort_values("importance_abs", ascending=False)
-
-lime_summary["feature_pretty"] = rename_specific(
-    [prettify(f) for f in lime_summary["feature"]]
-)
-
-# ------------------------------------------------------------
-# 6. Feature × time plot
-# ------------------------------------------------------------
-top = lime_summary.head(20)
-colors = ["green" if v >= 0 else "red" for v in top["signed"]]
-
-plt.figure(figsize=(12, 8))
-plt.barh(top["feature_pretty"], top["signed"], color=colors)
-plt.gca().invert_yaxis()
-plt.xlabel("Contribution (averaged across horizons)")
-plt.title("LIME – Feature-by-Time (Multi-Horizon Averaged)", fontsize=14)
-plt.tight_layout()
-plt.yticks(fontsize=14)
-plt.xticks(fontsize=14)
-plt.savefig(
-    f"plots/global_lime_feature_time_{target_col}_H{test_size}.png",
-    dpi=200,
-    bbox_inches="tight"
-)
-plt.close()
-
-# ------------------------------------------------------------
-# 7. Aggregate by FEATURE
-# ------------------------------------------------------------
-lime_summary["base_feature"] = lime_summary["feature"].str.rsplit("_t", n=1).str[0]
-
-agg_feat = (
-    lime_summary
-    .groupby("base_feature", as_index=False)
-    .agg(
-        signed=("signed", "sum"),
-        importance_abs=("importance_abs", "sum"),
-    )
-    .sort_values("importance_abs", ascending=False)
-)
-
-agg_feat["base_feature_pretty"] = rename_specific(
-    [prettify(f) for f in agg_feat["base_feature"]]
-)
-
-topf = agg_feat.head(20)
-colors = ["green" if v >= 0 else "red" for v in topf["signed"]]
-
-plt.figure(figsize=(12, 8))
-plt.barh(topf["base_feature_pretty"], topf["signed"], color=colors)
-plt.gca().invert_yaxis()
-plt.xlabel("Contribution (averaged across horizons)")
-plt.yticks(fontsize=14)
-plt.xticks(fontsize=14)
-plt.title("LIME – Contributions by Feature (Multi-Horizon)", fontsize=14)
-plt.tight_layout()
-plt.savefig(
-    f"plots/global_lime_feature_agg_{target_col}_H{test_size}.png",
-    dpi=200,
-    bbox_inches="tight"
-)
-plt.close()
-
-# ------------------------------------------------------------
-# 8. Aggregate by TIME
-# ------------------------------------------------------------
-lime_summary["time"] = (
-    lime_summary["feature"].str.extract(r"_t(\d+)$").astype(int)
-)
-
-time_agg = (
-    lime_summary
-    .groupby("time", as_index=False)
-    .agg(
-        signed=("signed", "sum"),
-        importance_abs=("importance_abs", "sum"),
-    )
-).sort_values("time")
-
-colors = ["green" if v >= 0 else "red" for v in time_agg["signed"]]
-
-plt.figure(figsize=(8, 8))
-plt.bar(time_agg["time"], time_agg["signed"], color=colors)
-plt.axhline(0, color="black", linewidth=1)
-plt.xlabel("Time lag (t)")
-plt.ylabel("Contribution")
-plt.yticks(fontsize=14)
-plt.xticks(fontsize=14)
-plt.title("LIME – Contribution by Time Lag (Multi-Horizon)", fontsize=14)
-plt.tight_layout()
-plt.savefig(
-    f"plots/global_lime_time_lag_contribution_{target_col}_H{test_size}.png",
-    dpi=200,
-    bbox_inches="tight"
-)
-plt.close()
+#
+# # ------------------------------------------------------------
+# # 4. LIME per horizon, then average contributions
+# # ------------------------------------------------------------
+# n_features = X_lime.shape[1]
+# agg_pos_h = np.zeros((H, n_features))
+# agg_neg_h = np.zeros((H, n_features))
+# agg_abs_h = np.zeros((H, n_features))
+#
+# N_REPEATS = 10
+#
+# for h in range(H):
+#     print(f"\n=== Explaining horizon {h + 1}/{H} ===")
+#     predict_fn = predict_fn_h(h)
+#
+#     for i in range(N):
+#         weights_i = []
+#
+#         for s in range(N_REPEATS):
+#             np.random.seed(1000 + s)
+#
+#             exp_i = explainer.explain_instance(
+#                 X_lime[i],
+#                 predict_fn,
+#                 num_features=n_features
+#             )
+#             weights_i.append(dict(exp_i.as_list()))
+#
+#         df_i = pd.DataFrame(weights_i).fillna(0)
+#         mean_weights = df_i.mean()
+#
+#         for feat_name, w in mean_weights.items():
+#             idx = feature_names.index(feat_name)
+#
+#             if w >= 0:
+#                 agg_pos_h[h, idx] += w
+#             else:
+#                 agg_neg_h[h, idx] += w
+#
+#             agg_abs_h[h, idx] += abs(w)
+#
+# # ------------------------------------------------------------
+# # 5. Average across horizons and windows
+# # ------------------------------------------------------------
+# agg_pos = agg_pos_h.mean(axis=0) / N
+# agg_neg = agg_neg_h.mean(axis=0) / N
+# agg_abs = agg_abs_h.mean(axis=0) / N
+#
+# lime_summary = pd.DataFrame({
+#     "feature": feature_names,
+#     "importance_abs": agg_abs,
+#     "importance_pos": agg_pos,
+#     "importance_neg": agg_neg,
+# })
+# lime_summary["signed"] = lime_summary["importance_pos"] + lime_summary["importance_neg"]
+# lime_summary = lime_summary.sort_values("importance_abs", ascending=False)
+#
+# lime_summary["feature_pretty"] = rename_specific(
+#     [prettify(f) for f in lime_summary["feature"]]
+# )
+#
+# # ------------------------------------------------------------
+# # 6. Feature × time plot
+# # ------------------------------------------------------------
+# top = lime_summary.head(20)
+# colors = ["green" if v >= 0 else "red" for v in top["signed"]]
+#
+# plt.figure(figsize=(12, 8))
+# plt.barh(top["feature_pretty"], top["signed"], color=colors)
+# plt.gca().invert_yaxis()
+# plt.xlabel("Contribution (averaged across horizons)")
+# plt.title("LIME – Feature-by-Time (Multi-Horizon Averaged)", fontsize=14)
+# plt.tight_layout()
+# plt.yticks(fontsize=14)
+# plt.xticks(fontsize=14)
+# plt.savefig(
+#     f"plots/global_lime_feature_time_{target_col}_H{test_size}.png",
+#     dpi=200,
+#     bbox_inches="tight"
+# )
+# plt.close()
+#
+# # ------------------------------------------------------------
+# # 7. Aggregate by FEATURE
+# # ------------------------------------------------------------
+# lime_summary["base_feature"] = lime_summary["feature"].str.rsplit("_t", n=1).str[0]
+#
+# agg_feat = (
+#     lime_summary
+#     .groupby("base_feature", as_index=False)
+#     .agg(
+#         signed=("signed", "sum"),
+#         importance_abs=("importance_abs", "sum"),
+#     )
+#     .sort_values("importance_abs", ascending=False)
+# )
+#
+# agg_feat["base_feature_pretty"] = rename_specific(
+#     [prettify(f) for f in agg_feat["base_feature"]]
+# )
+#
+# topf = agg_feat.head(20)
+# colors = ["green" if v >= 0 else "red" for v in topf["signed"]]
+#
+# plt.figure(figsize=(12, 8))
+# plt.barh(topf["base_feature_pretty"], topf["signed"], color=colors)
+# plt.gca().invert_yaxis()
+# plt.xlabel("Contribution (averaged across horizons)")
+# plt.yticks(fontsize=14)
+# plt.xticks(fontsize=14)
+# plt.title("LIME – Contributions by Feature (Multi-Horizon)", fontsize=14)
+# plt.tight_layout()
+# plt.savefig(
+#     f"plots/global_lime_feature_agg_{target_col}_H{test_size}.png",
+#     dpi=200,
+#     bbox_inches="tight"
+# )
+# plt.close()
+#
+# # ------------------------------------------------------------
+# # 8. Aggregate by TIME
+# # ------------------------------------------------------------
+# lime_summary["time"] = (
+#     lime_summary["feature"].str.extract(r"_t(\d+)$").astype(int)
+# )
+#
+# time_agg = (
+#     lime_summary
+#     .groupby("time", as_index=False)
+#     .agg(
+#         signed=("signed", "sum"),
+#         importance_abs=("importance_abs", "sum"),
+#     )
+# ).sort_values("time")
+#
+# colors = ["green" if v >= 0 else "red" for v in time_agg["signed"]]
+#
+# plt.figure(figsize=(8, 8))
+# plt.bar(time_agg["time"], time_agg["signed"], color=colors)
+# plt.axhline(0, color="black", linewidth=1)
+# plt.xlabel("Time lag (t)")
+# plt.ylabel("Contribution")
+# plt.yticks(fontsize=14)
+# plt.xticks(fontsize=14)
+# plt.title("LIME – Contribution by Time Lag (Multi-Horizon)", fontsize=14)
+# plt.tight_layout()
+# plt.savefig(
+#     f"plots/global_lime_time_lag_contribution_{target_col}_H{test_size}.png",
+#     dpi=200,
+#     bbox_inches="tight"
+# )
+# plt.close()
 
 
 
