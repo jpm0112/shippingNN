@@ -2089,6 +2089,7 @@ def prettify(name):
         "U S A": "USA",
         "Usa": "USA",
         "Refrigerado": "Refrigerated",
+        "Rut Probable Importador": "Number Unique Importers",
     }
 
     for k, v in translations.items():
@@ -2138,6 +2139,7 @@ def rename_specific(names):
         "U S A": "USA",
         "Total TEU Cma Cmg T0": "Total TEU CMA CGM T-0",
         "Usa": "USA",
+        "Rut Probable Importador": "Number Unique Importers",
 
 
     }

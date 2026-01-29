@@ -1,5 +1,5 @@
 # ============================================================
-#  MULTI-GPU PARALLEL TRANSFORMER BO (PER TARGET)
+#  MULTI-GPU PARALLEL TRANSFORMER BO (PER TARGET × DELETED WEEKS)
 # ============================================================
 
 import warnings
@@ -8,21 +8,14 @@ warnings.filterwarnings("ignore")
 
 import os
 import csv
-import torch
-import numpy as np
 import pandas as pd
 import multiprocessing as mp
 
 from pathlib import Path
 from datetime import datetime
-from lightning import seed_everything
-from ax.service.ax_client import AxClient
-from ax.service.utils.instantiation import ObjectiveProperties
+from itertools import product
 
-from functions import (
-    run_transformer_with_for,
-    clean_gpu,
-)
+from functions import run_transformer_with_for, clean_gpu
 
 # ============================================================
 #  GLOBAL CONFIG
@@ -36,8 +29,7 @@ min_delta = 1e-5
 seed = 1048596
 
 target_cols = ["FE", "NAE", "NAW", "NE", "SE", "SAW", "SAE"]
-
-target_cols = [ "SAE","SAE_CHINA"]
+deleted_weeks_list = [26, 52]
 
 # ============================================================
 #  LOAD DATA (ONCE)
@@ -50,17 +42,22 @@ df = df.sort_values("FECHA").reset_index(drop=True)
 # ============================================================
 #  WORKER FUNCTION (ONE TARGET, ONE GPU)
 # ============================================================
-def run_target(target_col, gpu_id):
+def run_target(target_col, gpu_id, deleted_weeks):
+    # IMPORT HEAVY STUFF INSIDE CHILD (Windows spawn-friendly)
+    import torch
+    from lightning import seed_everything
+    from ax.service.ax_client import AxClient
+    from ax.service.utils.instantiation import ObjectiveProperties
+
     # --- pin process to one GPU ---
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     torch.cuda.set_device(0)
     device = torch.device("cuda:0")
 
-    print(f"[GPU {gpu_id}] Starting target {target_col}")
+    print(f"[GPU {gpu_id}] Starting {target_col} | deleted_weeks={deleted_weeks}", flush=True)
 
     metric = "mape"
     country = "chile"
-
 
     # ========================================================
     #  CSV SETUP
@@ -69,14 +66,22 @@ def run_target(target_col, gpu_id):
     results_dir = Path("results")
     results_dir.mkdir(exist_ok=True)
 
-    csv_path = results_dir / f"new2_transformer_trials_{country}_{target_col}_{timestamp}_{initial_test_size}.csv"
+    csv_path = results_dir / (
+        f"robustness_transformer_trials_{country}_{target_col}_"
+        f"del{deleted_weeks}_{timestamp}_{initial_test_size}.csv"
+    )
+
     csv_file = csv_path.open("w", newline="")
-    csv_writer = csv.DictWriter(csv_file, fieldnames=[
-        "trial_index", "test_size", "window_size", "d_model", "n_head", "num_layers",
-        "dropout", "batch_size", "lr", "epochs", "optimizer", "weight_decay",
-        "mae", "mape", "mse", "rmse", "r2", "sd",
-        "runtime_s", "started_at", "epochs_ran",
-    ])
+    csv_writer = csv.DictWriter(
+        csv_file,
+        fieldnames=[
+            "trial_index", "test_size", "window_size", "d_model", "n_head",
+            "num_layers", "dropout", "batch_size", "lr", "epochs",
+            "optimizer", "weight_decay",
+            "mae", "mape", "mse", "rmse", "r2", "sd",
+            "runtime_s", "started_at", "epochs_ran",
+        ],
+    )
     csv_writer.writeheader()
 
     # ========================================================
@@ -84,12 +89,11 @@ def run_target(target_col, gpu_id):
     # ========================================================
     ax = AxClient()
 
-
     ax.create_experiment(
-        name=f"transformer_experiment_{target_col}",
+        name=f"transformer_{target_col}_del{deleted_weeks}",
         parameters=[
             {"name": "test_size", "type": "choice", "values": [initial_test_size]},
-            {"name": "window_size", "type": "range", "bounds": [2, 5]},
+            {"name": "window_size", "type": "range", "bounds": [8, 52]},
             {"name": "d_model", "type": "choice", "values": [32, 64, 128, 256]},
             {"name": "n_head", "type": "choice", "values": [2, 4, 8]},
             {"name": "num_layers", "type": "range", "bounds": [1, 4]},
@@ -107,7 +111,7 @@ def run_target(target_col, gpu_id):
     #  BAYESIAN OPT LOOP
     # ========================================================
     for i in range(iterations):
-        print(f"[GPU {gpu_id}] {target_col} | Trial {i + 1}/{iterations}")
+        print(f"[GPU {gpu_id}] {target_col} | del={deleted_weeks} | Trial {i + 1}/{iterations}", flush=True)
 
         params, trial_index = ax.get_next_trial()
         started_at = datetime.now()
@@ -117,16 +121,15 @@ def run_target(target_col, gpu_id):
 
         tmp = df.copy()
         tmp = tmp.iloc[:-initial_test_size * number_test_sets]
+        tmp = tmp.iloc[:-deleted_weeks]
 
-        if target_col == "SAE_CHINA":
-            #delete all columns of tmp except SAE and CSI300_volume
-            tmp = tmp[["FECHA", "SAE", "csi300_volume"]]
-
-
-
+        # guard against empty df
+        if len(tmp) < (int(params["window_size"]) + int(params["test_size"]) + 5):
+            print(f"[GPU {gpu_id}] Skipping: not enough rows after deletion.", flush=True)
+            ax.log_trial_failure(trial_index)
+            continue
 
         try:
-            target_col = "SAE"
             mae, mape, mse, rmse, r2, epochs_ran, sd = run_transformer_with_for(
                 df=tmp,
                 target_col=target_col,
@@ -178,28 +181,36 @@ def run_target(target_col, gpu_id):
             csv_file.flush()
 
         except Exception as e:
-            print(f"[GPU {gpu_id}] Error:", e)
+            print(f"[GPU {gpu_id}] ERROR:", e, flush=True)
             ax.log_trial_failure(trial_index)
 
     csv_file.close()
-    print(f"[GPU {gpu_id}] Finished {target_col}")
+    print(f"[GPU {gpu_id}] Finished {target_col} | del={deleted_weeks}", flush=True)
 
 
 # ============================================================
-#  MAIN: PARALLEL EXECUTION (2 GPUS)
+#  MAIN: PARALLEL EXECUTION
 # ============================================================
 if __name__ == "__main__":
 
-    gpus = [0, 1]  # your two GPUs
+    mp.set_start_method("spawn", force=True)
+
+    # reduce thread contention during imports / training
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+
+    gpus = [0, 1]
     processes = []
 
-    for i, target in enumerate(target_cols):
+    combos = list(product(target_cols, deleted_weeks_list))
+
+    for i, (target, deleted_weeks) in enumerate(combos):
         p = mp.Process(
             target=run_target,
-            args=(target, gpus[i % len(gpus)])
+            args=(target, gpus[i % len(gpus)], deleted_weeks),
         )
         p.start()
         processes.append(p)
 
-    for p in processes:
-        p.join()
+
+
