@@ -1,5 +1,5 @@
 {
-  description = "Project dev environment (Python + uv + Julia)";
+  description = "Project dev environment (Python + uv)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
