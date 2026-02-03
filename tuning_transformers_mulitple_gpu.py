@@ -29,7 +29,9 @@ min_delta = 1e-5
 seed = 1048596
 
 target_cols = ["FE", "NAE", "NAW", "NE", "SE", "SAW", "SAE"]
-deleted_weeks_list = [26, 52]
+
+target_cols = ["SAW","SAW_forced_china","SAW_forced_window","SAW_forced_china_window", "SAW_allow_short","SAW_allow_short_china"]
+deleted_weeks_list = [0]
 
 # ============================================================
 #  LOAD DATA (ONCE)
@@ -67,7 +69,7 @@ def run_target(target_col, gpu_id, deleted_weeks):
     results_dir.mkdir(exist_ok=True)
 
     csv_path = results_dir / (
-        f"robustness_transformer_trials_{country}_{target_col}_"
+        f"china_trials_transformer_trials_{country}_{target_col}_"
         f"del{deleted_weeks}_{timestamp}_{initial_test_size}.csv"
     )
 
@@ -89,16 +91,32 @@ def run_target(target_col, gpu_id, deleted_weeks):
     # ========================================================
     ax = AxClient()
 
+    minimum_window = 12
+    maximum_window = 48
+
+    if "SAW_forced_window" == target_col:
+        minimum_window = 1
+        maximum_window = 5
+    if "SAW_allow_short" == target_col:
+        minimum_window = 1
+    if "SAW_allow_short_china" == target_col:
+        minimum_window = 1
+    if "SAW_forced_china_window" == target_col:
+        minimum_window = 1
+        maximum_window = 5
+
+
+
     ax.create_experiment(
         name=f"transformer_{target_col}_del{deleted_weeks}",
         parameters=[
             {"name": "test_size", "type": "choice", "values": [initial_test_size]},
-            {"name": "window_size", "type": "range", "bounds": [8, 52]},
+            {"name": "window_size", "type": "range", "bounds": [minimum_window, maximum_window]},
             {"name": "d_model", "type": "choice", "values": [32, 64, 128, 256]},
             {"name": "n_head", "type": "choice", "values": [2, 4, 8]},
             {"name": "num_layers", "type": "range", "bounds": [1, 4]},
             {"name": "dropout", "type": "range", "bounds": [0.0, 0.6]},
-            {"name": "batch_size", "type": "choice", "values": [32, 64, 128]},
+            {"name": "batch_size", "type": "choice", "values": [64, 128]},
             {"name": "lr", "type": "range", "bounds": [1e-5, 1e-3], "log_scale": True},
             {"name": "optimizer", "type": "choice", "values": ["adam"]},
             {"name": "weight_decay", "type": "range", "bounds": [1e-6, 1e-3], "log_scale": True},
@@ -121,7 +139,21 @@ def run_target(target_col, gpu_id, deleted_weeks):
 
         tmp = df.copy()
         tmp = tmp.iloc[:-initial_test_size * number_test_sets]
-        tmp = tmp.iloc[:-deleted_weeks]
+        # tmp = tmp.iloc[:-deleted_weeks]
+        if "SAW_forced_china" == target_col:
+            cols_to_keep = ["SAE", "cny_price", "clp_price", "SAW"]
+            tmp = tmp[cols_to_keep]
+
+        if "SAW_forced_china_window" == target_col:
+            cols_to_keep = ["SAE", "cny_price", "clp_price", "SAW"]
+            tmp = tmp[cols_to_keep]
+
+        if "SAW_allow_short_china" == target_col:
+            cols_to_keep = ["SAE", "cny_price", "clp_price", "SAW"]
+            tmp = tmp[cols_to_keep]
+        target_col = "SAW"
+
+
 
         # guard against empty df
         if len(tmp) < (int(params["window_size"]) + int(params["test_size"]) + 5):
@@ -130,6 +162,9 @@ def run_target(target_col, gpu_id, deleted_weeks):
             continue
 
         try:
+
+
+
             mae, mape, mse, rmse, r2, epochs_ran, sd = run_transformer_with_for(
                 df=tmp,
                 target_col=target_col,

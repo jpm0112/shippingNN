@@ -1807,7 +1807,7 @@ def run_darts_tft(df,
     # ---- 2. Train/val split ----
 
     # We need enough data for the Input Window + Output Horizon + (N samples - 1)
-    num_val_samples = 12
+    num_val_samples = 3 #was 12
     val_size = window_size + test_size + (num_val_samples - 1)
 
     # Ensure val_size doesn't consume the entire dataset

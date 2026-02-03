@@ -196,9 +196,9 @@ batch_size = 64
 d_model = 256
 n_head = 8
 num_layers = 3  # lstm layers
-lr = 0.000496422
-dropout = 0.506098107
-weight_decay = 1.00E-06
+lr = 0.000496421949598074
+dropout = 0.506098106834949
+weight_decay = 0.000001
 
 # ==============================
 
@@ -357,56 +357,56 @@ def predict_fn(flat_X):
         preds[i] = float(np.asarray(y_hat[HORIZON_TO_EXPLAIN]).squeeze())
 
     return preds
-
-
-multi_horizon_method = "discounted"
-def predict_fn(flat_X):
-    """LIME predict_fn: discounted average over horizons (gamma = 0.5)."""
-
-    gamma = 0.5  # discount factor
-    flat_X = np.asarray(flat_X)
-    preds = np.zeros(flat_X.shape[0], dtype=float)
-
-    # precompute normalized discount weights
-    weights = np.array([gamma ** h for h in range(H)], dtype=float)
-    weights /= weights.sum()
-
-    for i in range(flat_X.shape[0]):
-        arr = flat_X[i].reshape(window_size, F)
-
-        cov_win = arr[:, 1:]  # (T, n_cov)
-        X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
-
-        with torch.no_grad():
-            y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
-
-        y_hat = _inverse_scale_y(y_hat_scaled)
-        preds[i] = float(np.dot(weights, y_hat))  # discounted average
-
-    return preds
-
-multi_horizon_method = "average"
-def predict_fn(flat_X):
-    """LIME predict_fn: returns the average prediction across all horizons."""
-
-    flat_X = np.asarray(flat_X)
-    preds = np.zeros(flat_X.shape[0], dtype=float)
-
-    for i in range(flat_X.shape[0]):
-        arr = flat_X[i].reshape(window_size, F)
-
-        # Transformer ONLY uses covariates
-        cov_win = arr[:, 1:]  # (T, n_cov)
-
-        X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
-
-        with torch.no_grad():
-            y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
-
-        y_hat = _inverse_scale_y(y_hat_scaled)
-        preds[i] = float(np.mean(y_hat))  # <<< average over horizons
-
-    return preds
+#
+#
+# multi_horizon_method = "discounted"
+# def predict_fn(flat_X):
+#     """LIME predict_fn: discounted average over horizons (gamma = 0.5)."""
+#
+#     gamma = 0.5  # discount factor
+#     flat_X = np.asarray(flat_X)
+#     preds = np.zeros(flat_X.shape[0], dtype=float)
+#
+#     # precompute normalized discount weights
+#     weights = np.array([gamma ** h for h in range(H)], dtype=float)
+#     weights /= weights.sum()
+#
+#     for i in range(flat_X.shape[0]):
+#         arr = flat_X[i].reshape(window_size, F)
+#
+#         cov_win = arr[:, 1:]  # (T, n_cov)
+#         X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+#
+#         with torch.no_grad():
+#             y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
+#
+#         y_hat = _inverse_scale_y(y_hat_scaled)
+#         preds[i] = float(np.dot(weights, y_hat))  # discounted average
+#
+#     return preds
+#
+# multi_horizon_method = "average"
+# def predict_fn(flat_X):
+#     """LIME predict_fn: returns the average prediction across all horizons."""
+#
+#     flat_X = np.asarray(flat_X)
+#     preds = np.zeros(flat_X.shape[0], dtype=float)
+#
+#     for i in range(flat_X.shape[0]):
+#         arr = flat_X[i].reshape(window_size, F)
+#
+#         # Transformer ONLY uses covariates
+#         cov_win = arr[:, 1:]  # (T, n_cov)
+#
+#         X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+#
+#         with torch.no_grad():
+#             y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
+#
+#         y_hat = _inverse_scale_y(y_hat_scaled)
+#         preds[i] = float(np.mean(y_hat))  # <<< average over horizons
+#
+#     return preds
 
 
 
@@ -1194,7 +1194,7 @@ plt.show()
 # BEESWARM PLOT FOR ONE INSTANCE
 
 
-N_GLOBAL = 200
+N_GLOBAL = 500
 T = window_size
 n_cov = len(feature_cols)
 H = test_size
@@ -2087,3 +2087,225 @@ plt.show()
 
 feat_scores = np.sum(np.abs(attr_np), axis=0)
 feat_scores
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+# _-----------------------------------------------------------
+
+
+# ============================================================
+# MULTI-HORIZON DEEPSHAP (ALL HORIZONS)
+# ============================================================
+import numpy as np
+
+np.bool = bool
+H = test_size
+N_GLOBAL = X_global.shape[0]
+T = window_size
+n_feat = len(feature_cols)
+
+shap_vals_h = []  # list of (N_GLOBAL, T*n_feat)
+X_vals_h = []  # same shape
+
+for h in range(H):
+    print(f"Computing SHAP for horizon {h + 1}/{H}")
+
+    wrapped_model = ModelWrapperForHorizon(
+        model,
+        horizon_idx=h,
+        vmin=scaler_y.vmin,
+        vmax=scaler_y.vmax
+    ).to(xai_device).eval()
+
+    try:
+        explainer_h = shap.DeepExplainer(wrapped_model, X_background_tensor)
+    except Exception:
+        explainer_h = shap.GradientExplainer(wrapped_model, X_background_tensor)
+
+    shap_h = explainer_h.shap_values(
+        X_global_tensor,
+        check_additivity=False
+    )
+
+    if isinstance(shap_h, list):
+        shap_h = shap_h[0]
+
+    shap_h = np.squeeze(np.array(shap_h))  # (N_GLOBAL, T, n_feat)
+
+    shap_vals_h.append(shap_h.reshape(N_GLOBAL, -1))
+    X_vals_h.append(X_global.reshape(N_GLOBAL, -1))
+
+# ============================================================
+# AGGREGATE SHAP OVER TIME (LAGS) → FEATURE LEVEL
+# ============================================================
+
+shap_feat_h = []  # (N_GLOBAL, n_feat) per horizon
+X_feat_h = []
+
+for h in range(H):
+    shap_h = shap_vals_h[h].reshape(N_GLOBAL, T, n_feat)
+    X_h = X_vals_h[h].reshape(N_GLOBAL, T, n_feat)
+
+    shap_feat_h.append(shap_h.sum(axis=1))  # sum over lags
+    X_feat_h.append(X_h.mean(axis=1))  # mean value over window
+
+# stack horizons
+shap_feat_all = np.vstack(shap_feat_h)  # (H*N_GLOBAL, n_feat)
+X_feat_all = np.vstack(X_feat_h)
+
+# horizon id
+horizon_id = np.concatenate(
+    [np.full(N_GLOBAL, h) for h in range(H)]
+).reshape(-1, 1)
+
+
+
+
+
+
+
+
+# ============================================================
+
+# global importance over horizons and samples
+global_importance = np.mean(
+    [np.mean(np.abs(shap_feat_h[h]), axis=0) for h in range(H)],
+    axis=0
+)
+
+top_k = 5
+top_idx = np.argsort(global_importance)[::-1][:top_k]
+top_features = [feature_cols[i] for i in top_idx]
+
+import numpy as np
+
+Xs, Ys, Cs = [], [], []
+yticks = []
+ylabels = []
+
+row = 0
+SPACER = 1  # blank line between features
+for f_pos, f_idx in enumerate(top_idx):
+
+    for h in range(H):
+        h_inv = H - 1 - h  # H1 on top
+
+        shap_vals = shap_feat_h[h_inv][:, f_idx]
+        feat_vals = X_feat_h[h_inv][:, f_idx]
+
+        Xs.append(shap_vals)
+        Ys.append(np.full_like(shap_vals, row, dtype=float))
+        Cs.append(feat_vals)
+
+        yticks.append(row)
+
+        # ✅ label logic ONLY (data always plotted)
+        if h_inv == 0:
+            ylabels.append(f"{top_features[f_pos]}  |  H{h_inv + 1}")
+        else:
+            ylabels.append(f"H{h_inv + 1}")
+
+        row += 1
+
+    row += SPACER
+
+X = np.concatenate(Xs)
+Y = np.concatenate(Ys)
+C = np.concatenate(Cs)
+
+import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
+
+plt.figure(figsize=(12, 10), dpi=200)
+
+norm = Normalize(
+    vmin=np.percentile(C, 5),
+    vmax=np.percentile(C, 95)
+)
+
+plt.scatter(
+    X,
+    Y,
+    c=C,
+    cmap="coolwarm",
+    norm=norm,
+    s=14,
+    alpha=0.75,
+    edgecolors="none"
+)
+
+plt.axvline(0, color="black", lw=1)
+
+plt.yticks(yticks, ylabels)
+plt.xlabel("Aggregated SHAP value")
+# set axis font size
+plt.yticks(fontsize=14)
+plt.xticks(fontsize=14)
+plt.title("Top-5 features — horizon-wise SHAP distributions")
+
+# colorbar
+ax = plt.gca()
+sm = plt.cm.ScalarMappable(cmap="coolwarm", norm=norm)
+sm.set_array([])
+
+from matplotlib.lines import Line2D
+
+value_legend = [
+    Line2D(
+        [0], [0],
+        marker='o',
+        color='w',
+        label='Low feature value',
+        markerfacecolor=plt.cm.coolwarm(0.05),
+        markersize=8
+    ),
+    Line2D(
+        [0], [0],
+        marker='o',
+        color='w',
+        label='High feature value',
+        markerfacecolor=plt.cm.coolwarm(0.95),
+        markersize=8
+    )
+]
+
+plt.legend(
+    handles=value_legend,
+    loc="upper right",
+    frameon=False
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+    f"plots/shap_top5_feature_horizon_blocks_{target_col}.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+plt.show()
