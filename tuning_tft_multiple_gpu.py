@@ -12,17 +12,17 @@ from ax.service.utils.instantiation import ObjectiveProperties
 from datetime import datetime
 from pathlib import Path
 from multiprocessing import Process
-
+import torch
 from functions import run_darts_tft_with_for, clean_gpu
 
 # ============================================================
 # CONFIG
 # ============================================================
-prediction_size = 4
+prediction_size = 12
 number_test_sets = 3
 iterations = 100
 
-patience = 75
+patience = 100
 min_delta = 1e-5
 seed = 1048596
 metric = "mape"
@@ -163,7 +163,7 @@ def run_targets_on_gpu(gpu_id, target_cols):
 # ============================================================
 if __name__ == "__main__":
 
-    target_cols = ["SAE", "SAW", "SE", "NE", "NAW"]
+    target_cols = ["SAE", "SAW"]
     n_gpus = torch.cuda.device_count()
 
     splits = np.array_split(target_cols, n_gpus)
