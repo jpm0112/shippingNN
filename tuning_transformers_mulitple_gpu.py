@@ -20,7 +20,7 @@ from functions import run_transformer_with_for, clean_gpu
 # ============================================================
 #  GLOBAL CONFIG
 # ============================================================
-initial_test_size = 12
+initial_test_size = 4
 number_test_sets = 3
 iterations = 100
 
@@ -32,7 +32,7 @@ target_cols = ["FE", "NAE", "NAW", "NE", "SE", "SAW", "SAE"]
 
 target_cols = ["SAW_selection","SAW_forced_window", "SAE_selection", "SAE_forced_window"]
 
-target_cols = ["SAE_selection","SAW_selection"]
+
 deleted_weeks_list = [0]
 
 # ============================================================
