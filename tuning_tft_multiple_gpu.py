@@ -163,7 +163,7 @@ def run_targets_on_gpu(gpu_id, target_cols):
 # ============================================================
 if __name__ == "__main__":
 
-    target_cols = ["SAE", "SAW"]
+    target_cols = ["FE", "NAE", "NAW", "NE", "SE"]
     n_gpus = torch.cuda.device_count()
 
     splits = np.array_split(target_cols, n_gpus)

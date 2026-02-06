@@ -1158,7 +1158,7 @@ def run_transformer_xai(df, target_col, window_size, test_size, batch_size, d_mo
     return real, preds, out_list
 
 
-def run_transformer_with_for(df,
+def run_transformer_with_for_2(df,
                              target_col,
                              window_size,
                              test_size,
@@ -1218,6 +1218,79 @@ def run_transformer_with_for(df,
 
         # epochs_run is out[4] per your return: [model, X_test_compat, X_train_compat, feature_cols, epochs_run]
         n_epochs_values.append(out[4])
+
+    mean_epochs = float(np.mean(n_epochs_values)) if n_epochs_values else np.nan
+
+    return (float(np.mean(mae_values)),
+            float(np.mean(mape_values)),
+            float(np.mean(mse_values)),
+            float(np.mean(rmse_values)),
+            float(np.mean(r2_values)),
+            mean_epochs,
+            float(np.std(mape_values)))
+
+
+def run_transformer_with_for(df,
+                               target_col,
+                               window_size,
+                               test_size,
+                               batch_size,
+                               d_model,
+                               n_head,
+                               num_layers,
+                               epoch_number,
+                               lr,
+                               dropout,
+                               device,
+                               seed,
+                               optimizer_type="adam",
+                               weight_decay=1e-4,
+                               early_stop=True,
+                               patience=200,
+                               min_delta=1e-5,
+                               n_runs=3):
+    mae_values, mape_values, mse_values, rmse_values, r2_values = [], [], [], [], []
+    n_epochs_values = []
+    seeds = [1048596, 42, 123, 456, 789]
+    for seed in seeds:
+        for i in range(n_runs):
+            tmp = df.copy().sort_values("FECHA")
+
+            deleted_sample = test_size * (i + 1)  # move cutoff back each run
+            if deleted_sample > 0:
+                tmp = tmp.iloc[:-deleted_sample]
+
+            y_true, y_pred, out = run_transformer(
+                df=tmp,
+                target_col=target_col,
+                window_size=window_size,
+                test_size=test_size,
+                batch_size=batch_size,
+                d_model=d_model,
+                n_head=n_head,
+                num_layers=num_layers,
+                epoch_number=epoch_number,
+                lr=lr,
+                dropout=dropout,
+                device=device,
+                seed=seed,
+                optimizer_type=optimizer_type,
+                weight_decay=weight_decay,
+                early_stop=early_stop,
+                patience=patience,
+                min_delta=min_delta,
+            )
+
+            mae, mape, mse, rmse, r2 = error_metrics(y_true, y_pred)
+
+            mae_values.append(mae)
+            mape_values.append(mape)
+            mse_values.append(mse)
+            rmse_values.append(rmse)
+            r2_values.append(r2)
+
+            # epochs_run is out[4] per your return: [model, X_test_compat, X_train_compat, feature_cols, epochs_run]
+            n_epochs_values.append(out[4])
 
     mean_epochs = float(np.mean(n_epochs_values)) if n_epochs_values else np.nan
 
@@ -2090,6 +2163,8 @@ def prettify(name):
         "Usa": "USA",
         "Refrigerado": "Refrigerated",
         "Rut Probable Importador": "Number Unique Importers",
+        "Cny Price": "CNY Price",
+        "Partida Arancelaria": "Weekly Unique Tariff Codes",
     }
 
     for k, v in translations.items():
@@ -2140,6 +2215,8 @@ def rename_specific(names):
         "Total TEU Cma Cmg T0": "Total TEU CMA CGM T-0",
         "Usa": "USA",
         "Rut Probable Importador": "Number Unique Importers",
+        "Cny Price": "CNY Price",
+        "Partida Arancelaria": "Weekly Unique Tariff Codes",
 
 
     }
