@@ -30,7 +30,9 @@ seed = 1048596
 
 target_cols = ["FE", "NAE", "NAW", "NE", "SE", "SAW", "SAE"]
 
-target_cols = ["SAW","SAW_forced_china","SAW_forced_window","SAW_forced_china_window", "SAW_allow_short","SAW_allow_short_china"]
+target_cols = ["SAW_selection","SAW_forced_window", "SAE_selection", "SAE_forced_window"]
+
+target_cols = ["SAE_selection","SAW_selection"]
 deleted_weeks_list = [0]
 
 # ============================================================
@@ -94,14 +96,7 @@ def run_target(target_col, gpu_id, deleted_weeks):
     minimum_window = 12
     maximum_window = 48
 
-    if "SAW_forced_window" == target_col:
-        minimum_window = 1
-        maximum_window = 5
-    if "SAW_allow_short" == target_col:
-        minimum_window = 1
-    if "SAW_allow_short_china" == target_col:
-        minimum_window = 1
-    if "SAW_forced_china_window" == target_col:
+    if "SAW_forced_window" == target_col or "SAE_forced_window" == target_col:
         minimum_window = 1
         maximum_window = 5
 
@@ -140,18 +135,25 @@ def run_target(target_col, gpu_id, deleted_weeks):
         tmp = df.copy()
         tmp = tmp.iloc[:-initial_test_size * number_test_sets]
         # tmp = tmp.iloc[:-deleted_weeks]
-        if "SAW_forced_china" == target_col:
-            cols_to_keep = ["SAE", "cny_price", "clp_price", "SAW"]
+
+        if "SAE_selection" == target_col:
+            cols_to_keep_target = ["SAE"]
+            cols_to_keep_LIME = ["cny_price", "clp_price", "brent_oil_price"]
+            cols_to_keep_SHAP = ["SAW", "FLETE_per_TEU", "FE"]
+            cols_to_keep = cols_to_keep_target + cols_to_keep_LIME + cols_to_keep_SHAP
             tmp = tmp[cols_to_keep]
 
-        if "SAW_forced_china_window" == target_col:
-            cols_to_keep = ["SAE", "cny_price", "clp_price", "SAW"]
+        if "SAW_selection" == target_col:
+            cols_to_keep_target = ["SAE"]
+            cols_to_keep_LIME = ["SUM_TEU_CYS", "cny_price","csi300_volume"]
+            cols_to_keep_SHAP = ["FE", "FLETE_per_TEU"]
+            cols_to_keep = cols_to_keep_target + cols_to_keep_LIME + cols_to_keep_SHAP
             tmp = tmp[cols_to_keep]
 
-        if "SAW_allow_short_china" == target_col:
-            cols_to_keep = ["SAE", "cny_price", "clp_price", "SAW"]
-            tmp = tmp[cols_to_keep]
-        target_col = "SAW"
+        if target_col == "SAW_selection" or target_col == "SAW_forced_window":
+            target_col = "SAW"
+        else:
+            target_col = "SAE"
 
 
 

@@ -1,6 +1,8 @@
 import warnings
 import sys
 
+from xai_kz_lime import yticks
+
 warnings.filterwarnings("ignore")
 import pytorch_lightning as pl
 import pandas as pd
@@ -89,20 +91,21 @@ lr = 0.000555638
 dropout = 0.312582405
 weight_decay = 0.000179268
 
-# BEST SAW 4
+# BEST SAW 4 udpated with real values from csv
 test_size = 4
 target_col = "SAW"
-window_size = 32
+window_size = 33
 batch_size = 128
 d_model = 32
 n_head = 2
 num_layers = 2  # lstm layers
 epoch_number = 2000
-lr = 0.000147759
-dropout = 0.424560519
-weight_decay = 8.66E-05
+lr = 0.000153194
+dropout = 0.575846442
 
-# BEST SAE 4
+weight_decay = 0.0000808
+
+# BEST SAE 4 (updated with real values from the csv)
 test_size = 4
 target_col = "SAE"
 window_size = 32
@@ -111,9 +114,9 @@ d_model = 128
 n_head = 2
 num_layers = 4  # lstm layers
 epoch_number = 2000
-lr = 0.000482691
-dropout = 0.517106545
-weight_decay = 7.75E-06
+lr = 0.000482690969879744
+dropout = 0.517106545291414
+weight_decay = 7.75222194438743E-06
 
 # BEST FE 12
 test_size = 12
@@ -188,7 +191,7 @@ lr = 0.000551659
 dropout = 0.426466938
 weight_decay = 6.90E-05
 
-# BEST SAE 12
+# BEST SAE 12 updated values from csv
 test_size = 12
 target_col = "SAE"
 window_size = 45
@@ -297,7 +300,7 @@ for t in range(window_size):
     lag = window_size - 1 - t
     for c in cols_all:
         feat_names.append(f"{c}_t-{lag}")
-
+N_ORIGINS = 4
 # LIME _____________________________________________-
 
 
@@ -366,87 +369,87 @@ def predict_fn(flat_X):
 
     return preds
 
-
-multi_horizon_method = "second"
-def predict_fn(flat_X):
-    """LIME predict_fn: returns a 1D array of predictions for the selected horizon."""
-
-    HORIZON_TO_EXPLAIN = 1
-    assert 0 <= HORIZON_TO_EXPLAIN < H, f"HORIZON_TO_EXPLAIN={HORIZON_TO_EXPLAIN} out of range [0,{H - 1}]"
-    flat_X = np.asarray(flat_X)
-    preds = np.zeros(flat_X.shape[0], dtype=float)
-
-    for i in range(flat_X.shape[0]):
-        arr = flat_X[i].reshape(window_size, F)
-
-        # Transformer ONLY uses covariates (match your training pipeline)
-        cov_win = arr[:, 1:]  # (T, n_cov)
-
-        X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
-
-        with torch.no_grad():
-            y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
-
-        y_hat = _inverse_scale_y(y_hat_scaled)
-        preds[i] = float(np.asarray(y_hat[HORIZON_TO_EXPLAIN]).squeeze())
-
-    return preds
-
-
-multi_horizon_method = "third"
-
-
-def predict_fn(flat_X):
-    """LIME predict_fn: returns a 1D array of predictions for the selected horizon."""
-
-    HORIZON_TO_EXPLAIN = 2
-    assert 0 <= HORIZON_TO_EXPLAIN < H, f"HORIZON_TO_EXPLAIN={HORIZON_TO_EXPLAIN} out of range [0,{H - 1}]"
-    flat_X = np.asarray(flat_X)
-    preds = np.zeros(flat_X.shape[0], dtype=float)
-
-    for i in range(flat_X.shape[0]):
-        arr = flat_X[i].reshape(window_size, F)
-
-        # Transformer ONLY uses covariates (match your training pipeline)
-        cov_win = arr[:, 1:]  # (T, n_cov)
-
-        X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
-
-        with torch.no_grad():
-            y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
-
-        y_hat = _inverse_scale_y(y_hat_scaled)
-        preds[i] = float(np.asarray(y_hat[HORIZON_TO_EXPLAIN]).squeeze())
-
-    return preds
-
-
-multi_horizon_method = "Fourth"
-
-
-def predict_fn(flat_X):
-    """LIME predict_fn: returns a 1D array of predictions for the selected horizon."""
-
-    HORIZON_TO_EXPLAIN = 3
-    assert 0 <= HORIZON_TO_EXPLAIN < H, f"HORIZON_TO_EXPLAIN={HORIZON_TO_EXPLAIN} out of range [0,{H - 1}]"
-    flat_X = np.asarray(flat_X)
-    preds = np.zeros(flat_X.shape[0], dtype=float)
-
-    for i in range(flat_X.shape[0]):
-        arr = flat_X[i].reshape(window_size, F)
-
-        # Transformer ONLY uses covariates (match your training pipeline)
-        cov_win = arr[:, 1:]  # (T, n_cov)
-
-        X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
-
-        with torch.no_grad():
-            y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
-
-        y_hat = _inverse_scale_y(y_hat_scaled)
-        preds[i] = float(np.asarray(y_hat[HORIZON_TO_EXPLAIN]).squeeze())
-
-    return preds
+#
+# multi_horizon_method = "second"
+# def predict_fn(flat_X):
+#     """LIME predict_fn: returns a 1D array of predictions for the selected horizon."""
+#
+#     HORIZON_TO_EXPLAIN = 1
+#     assert 0 <= HORIZON_TO_EXPLAIN < H, f"HORIZON_TO_EXPLAIN={HORIZON_TO_EXPLAIN} out of range [0,{H - 1}]"
+#     flat_X = np.asarray(flat_X)
+#     preds = np.zeros(flat_X.shape[0], dtype=float)
+#
+#     for i in range(flat_X.shape[0]):
+#         arr = flat_X[i].reshape(window_size, F)
+#
+#         # Transformer ONLY uses covariates (match your training pipeline)
+#         cov_win = arr[:, 1:]  # (T, n_cov)
+#
+#         X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+#
+#         with torch.no_grad():
+#             y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
+#
+#         y_hat = _inverse_scale_y(y_hat_scaled)
+#         preds[i] = float(np.asarray(y_hat[HORIZON_TO_EXPLAIN]).squeeze())
+#
+#     return preds
+#
+#
+# multi_horizon_method = "third"
+#
+#
+# def predict_fn(flat_X):
+#     """LIME predict_fn: returns a 1D array of predictions for the selected horizon."""
+#
+#     HORIZON_TO_EXPLAIN = 2
+#     assert 0 <= HORIZON_TO_EXPLAIN < H, f"HORIZON_TO_EXPLAIN={HORIZON_TO_EXPLAIN} out of range [0,{H - 1}]"
+#     flat_X = np.asarray(flat_X)
+#     preds = np.zeros(flat_X.shape[0], dtype=float)
+#
+#     for i in range(flat_X.shape[0]):
+#         arr = flat_X[i].reshape(window_size, F)
+#
+#         # Transformer ONLY uses covariates (match your training pipeline)
+#         cov_win = arr[:, 1:]  # (T, n_cov)
+#
+#         X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+#
+#         with torch.no_grad():
+#             y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
+#
+#         y_hat = _inverse_scale_y(y_hat_scaled)
+#         preds[i] = float(np.asarray(y_hat[HORIZON_TO_EXPLAIN]).squeeze())
+#
+#     return preds
+#
+#
+# multi_horizon_method = "Fourth"
+#
+#
+# def predict_fn(flat_X):
+#     """LIME predict_fn: returns a 1D array of predictions for the selected horizon."""
+#
+#     HORIZON_TO_EXPLAIN = 3
+#     assert 0 <= HORIZON_TO_EXPLAIN < H, f"HORIZON_TO_EXPLAIN={HORIZON_TO_EXPLAIN} out of range [0,{H - 1}]"
+#     flat_X = np.asarray(flat_X)
+#     preds = np.zeros(flat_X.shape[0], dtype=float)
+#
+#     for i in range(flat_X.shape[0]):
+#         arr = flat_X[i].reshape(window_size, F)
+#
+#         # Transformer ONLY uses covariates (match your training pipeline)
+#         cov_win = arr[:, 1:]  # (T, n_cov)
+#
+#         X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+#
+#         with torch.no_grad():
+#             y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
+#
+#         y_hat = _inverse_scale_y(y_hat_scaled)
+#         preds[i] = float(np.asarray(y_hat[HORIZON_TO_EXPLAIN]).squeeze())
+#
+#     return preds
 
 
 #
@@ -696,23 +699,38 @@ lime_summary_local["feature_pretty"] = rename_specific(
 # 6) Plot: feature × time
 # ------------------------------------------------------------
 
-
-top_to_plot = 5
+top_to_plot = 10
 top = lime_summary.head(top_to_plot)
+# rename_dict = {
+#     "Cny Price T0": "CNY Price T0",
+#     "Total TEU CYS T0": "Total TEU CYS T0",
+#     "CIF Total T0": "CIF Total T0",
+#     "Number of Packages T0": "Number of Packages T0",
+#     "NGF Natural Gas Volume T0": "Natural Gas Volume T0",
+#     "Total TEU Maersk T0": "Total TEU Maersk T0",
+#     "Total TEU Cosco T0": "Total TEU Cosco T0",
+#     "Total TEU Spain T0": "Total TEU Spain T0",
+#     "Items Per TEU T0": "Mean Items per TEU T0",
+#     "Partida Arancelaria T0": "Unique Tariff Codes T0"
+# }
+#
+# top["feature_pretty"] = top["feature_pretty"].replace(rename_dict)
+
+
 colors = ["green" if v >= 0 else "red" for v in top["signed"]]
 
-plt.figure(figsize=(8, 8))
+plt.figure(figsize=(8, 6))
 plt.barh(top["feature_pretty"], top["signed"], color=colors)
 plt.gca().invert_yaxis()
-plt.xlabel("Contribution", fontsize=14)
+plt.xlabel("Contribution", fontsize=16)
 # plt.title(f"Top {top_to_plot} LIME Feature Contributions", fontsize=16)
-plt.xticks(fontsize=14)
-plt.yticks(fontsize=14)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
 plt.axvline(0, color="black", linewidth=0.8)
 plt.tight_layout()
 
 plt.savefig(
-    f"plots/lime_feature_time_{target_col}_H{test_size}_{multi_horizon_method}.png",
+    f"plots/lime_feature_time_{target_col}_H{test_size}.png",
     dpi=200,
     bbox_inches="tight"
 )
@@ -721,6 +739,8 @@ plt.show()
 # ------------------------------------------------------------
 # 7) Aggregate over TIME → base feature
 # ------------------------------------------------------------
+
+
 lime_summary["base_feature"] = (
     lime_summary["feature"].str.rsplit("_t", n=1).str[0]
 )
@@ -739,23 +759,29 @@ agg_feat["base_feature_pretty"] = rename_specific(
     [prettify(f) for f in agg_feat["base_feature"]]
 )
 topf = agg_feat.head(top_to_plot)
+# rename_dict = {
+#     "Numero De Aceptacion": "Number of DNI documents",
+# }
+# topf["base_feature_pretty"] = topf["base_feature_pretty"].replace(rename_dict)
 colors = ["green" if v >= 0 else "red" for v in topf["signed"]]
 
-plt.figure(figsize=(8, 8))
+plt.figure(figsize=(8, 6))
 plt.barh(topf["base_feature_pretty"], topf["signed"], color=colors)
 plt.gca().invert_yaxis()
-plt.xlabel("Aggregated contribution", fontsize=14)
+plt.xlabel("Aggregated contribution", fontsize=16)
 # plt.title(f"Top {top_to_plot} LIME Feature Contributions", fontsize=16)
-plt.xticks(fontsize=14)
-plt.yticks(fontsize=14)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
 plt.tight_layout()
 plt.axvline(0, color="black", linewidth=0.8)
 plt.savefig(
-    f"plots/lime_feature_agg_{target_col}_H{test_size}_{multi_horizon_method}.png",
+    f"plots/lime_feature_agg_{target_col}_H{test_size}.png",
     dpi=200,
     bbox_inches="tight"
 )
 plt.show()
+
+
 
 # ------------------------------------------------------------
 # 8) Aggregate by TIME STEP (lag)
@@ -776,7 +802,7 @@ time_agg = (
     )
     .sort_values("time")
 )
-plt.figure(figsize=(8, 8))
+plt.figure(figsize=(8, 6))
 colors = ["green" if v >= 0 else "red" for v in time_agg["signed"]]
 plt.bar(
     time_agg["time"],
@@ -785,17 +811,17 @@ plt.bar(
 )
 plt.axhline(0, color="black", linewidth=1)
 # plt.gca().invert_xaxis()  # ← lag 0 on the left
-plt.xlabel("Lag index (0 = most recent)", fontsize=14)
-plt.ylabel("Aggregated contribution", fontsize=14)
-plt.xticks(fontsize=14)
-plt.yticks(fontsize=14)
+plt.xlabel("Lag index (0 = most recent)", fontsize=16)
+plt.ylabel("Aggregated contribution", fontsize=16)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
 # plt.title("LIME – Contributions by Lag")
 
 plt.grid(axis="y", linestyle="--", alpha=0.5)
 plt.tight_layout()
 
 plt.savefig(
-    f"plots/lime_lag_contribution_{target_col}_H{test_size}_{multi_horizon_method}.png",
+    f"plots/lime_lag_contribution_{target_col}_H{test_size}.png",
     dpi=200,
     bbox_inches="tight"
 )
@@ -1045,7 +1071,7 @@ top_features = (
     .groupby("base_feature")["importance_abs"]
     .sum()
     .sort_values(ascending=False)
-    .head(10)
+    .head(5)
     .index
 )
 
@@ -1124,10 +1150,11 @@ plt.gca().invert_yaxis()
 
 plt.yticks(y_positions, y_labels)
 plt.axvline(0, color="black", linewidth=0.8)
-plt.xlabel("Aggregated contribution")
+plt.xlabel("Aggregated contribution", fontsize=16)
 plt.ylabel("")
 plt.tight_layout()
-plt.yticks(fontsize=9.5)
+plt.yticks(fontsize=16)
+plt.xticks(fontsize=16)
 plt.savefig(
     f"plots/lime_feature_horizon_bar_{target_col}_H{test_size}.png",
     dpi=200,
@@ -1367,7 +1394,7 @@ explanation = shap.Explanation(
 # Sum absolute SHAP across all instances
 temporal_importance = np.mean(np.abs(shap_values), axis=0).T  # (n_cov, T)
 
-plt.figure(figsize=(12, 10))
+plt.figure(figsize=(8, 6))
 plt.imshow(temporal_importance, aspect='auto', cmap='YlOrRd')
 plt.colorbar(label='Mean |SHAP value|')
 plt.xlabel('Time step (t-window+1 to t)')
@@ -1392,7 +1419,7 @@ feature_importance_df = pd.DataFrame({
     "total_importance": feature_total_importance
 }).sort_values("total_importance", ascending=True)
 
-plt.figure(figsize=(12, 10))
+plt.figure(figsize=(8, 6))
 plt.barh(feature_importance_df["feature"], feature_importance_df["total_importance"], color="steelblue")
 plt.xlabel("Total |SHAP| (summed over time)")
 plt.title(f"DeepSHAP – Feature Total Importance (horizon={HORIZON_TO_EXPLAIN + 1}/{H})")
@@ -1468,12 +1495,18 @@ waterfall_exp = shap.Explanation(
     feature_names=feature_names
 )
 
-plt.figure(figsize=(8, 6))
-shap.plots.waterfall(waterfall_exp, max_display=12, show=False)
+plt.figure(figsize=(8, 6))  # instead of (8,6)
+
+shap.plots.waterfall(waterfall_exp, max_display=10, show=False)
+# shap.waterfall_plot(waterfall_exp, max_display=10)
+
 # plt.title(
 #     f"DeepSHAP Waterfall by Feature (Instance {instance_idx}, "
 #     f"Horizon {HORIZON_TO_EXPLAIN + 1}/{H})"
 # )
+#set tick fontsize
+plt.yticks(fontsize=16)
+plt.xticks(fontsize=16)
 plt.tight_layout()
 plt.savefig(
     f"plots/deepshap_waterfall_by_feature_{target_col}_H{test_size}_inst{instance_idx}.png",
@@ -1481,6 +1514,34 @@ plt.savefig(
     bbox_inches="tight"
 )
 plt.show()
+plt.close()
+# plt.figure(figsize=(12, 7))
+shap.waterfall_plot(waterfall_exp, max_display=11)
+
+plt.draw()
+
+plt.gcf().savefig(
+    f"plots/deepshap_average_waterfall_{target_col}_H{test_size}.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+plt.close()
+
+import matplotlib.pyplot as plt
+
+fig = plt.figure()
+
+shap.waterfall_plot(waterfall_exp, max_display=11, show=False)
+
+fig = plt.gcf()  # grab the REAL figure
+
+fig.savefig(
+    f"plots/deepshap_average_waterfall_{target_col}_H{test_size}.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.close(fig)
 
 # ------------------------------------------------------------
 # "Average" (aggregated) waterfall — FEATURE level
@@ -1497,7 +1558,7 @@ waterfall_exp = shap.Explanation(
 plt.figure(figsize=(8, 6))
 shap.plots.waterfall(
     waterfall_exp,
-    max_display=12,
+    max_display=6,
     show=False
 )
 
@@ -1644,7 +1705,8 @@ ROW_GAP = 1.4
 for f_pos, f_idx in enumerate(top_idx):
 
     for h in range(H):
-        h_inv = H - 1 - h
+        # h_inv = H - 1 - h
+        h_inv = h
 
         shap_vals = shap_feat_h[h_inv][:, f_idx]
         feat_vals = X_feat_h[h_inv][:, f_idx]
@@ -1677,7 +1739,7 @@ C = np.concatenate(Cs)
 # ============================================================
 # 6) Plot
 # ============================================================
-plt.figure(figsize=(12, 8), dpi=400)
+plt.figure(figsize=(12, 6), dpi=400) # use 12 6 for horizon 12
 
 norm = Normalize(
     vmin=np.percentile(C, 5),
@@ -1694,12 +1756,13 @@ plt.scatter(
     edgecolors="none"
 )
 ax = plt.gca()
+ax.invert_yaxis()
 plt.axvline(0, color="black", lw=1)
 
 plt.yticks(yticks, ylabels, fontsize=14)
 plt.xticks(fontsize=14)
 
-plt.xlabel("SHAP value (impact on model output)", fontsize=14)
+plt.xlabel("SHAP value", fontsize=14)
 # plt.title("Top-5 features — horizon-wise SHAP distributions", fontsize=14)
 
 # legend (low/high feature values)
@@ -1713,12 +1776,14 @@ value_legend = [
            markerfacecolor=plt.cm.coolwarm(0.95),
            markersize=8)
 ]
+
+
 plt.legend(
     handles=value_legend,
-    loc="upper right",
-    bbox_to_anchor=(1.0, 0.89),  # ↓ move down (0.85–0.95 are good)
+    loc="upper left",
+    bbox_to_anchor=(1, 1.02),
     frameon=False,
-    fontsize=16
+    fontsize=12
 )
 
 plt.tight_layout()
@@ -1742,7 +1807,7 @@ X_feat_h1 = X_feat_h[HORIZON]  # (N_GLOBAL, n_cov)
 # ------------------------------------------------------------
 # Select top-20 features by mean |SHAP|
 # ------------------------------------------------------------
-top_k = 20
+top_k = 12
 importance_h1 = np.mean(np.abs(shap_feat_h1), axis=0)
 top_idx_20 = np.argsort(importance_h1)[::-1][:top_k]
 
@@ -1769,11 +1834,11 @@ plt.figure(figsize=(10, 6))
 
 shap.plots.beeswarm(
     exp_h1,
-    max_display=20,
+    max_display=12,
     show=False,
     color_bar=False  # <<< FIX
 )
-shap.plots.beeswarm(exp_h1, max_display=20, show=False, color_bar=False)
+shap.plots.beeswarm(exp_h1, max_display=12, show=False, color_bar=False)
 
 
 
@@ -1785,6 +1850,30 @@ plt.savefig(
     bbox_inches="tight"
 )
 plt.show()
+
+
+# SECOND PLOT
+
+plt.figure(figsize=(10, 6))
+
+shap.plots.beeswarm(
+    exp_h1,
+    max_display=12,
+    show=False,
+    color_bar=False
+)
+
+plt.xlabel("SHAP value", fontsize=12)
+
+plt.tight_layout()
+plt.savefig(
+    f"plots/deepshap_beeswarm_top20_{target_col}_H1_{test_size}.png",
+    dpi=500,
+    bbox_inches="tight"
+)
+plt.show()
+
+
 
 # ============================================================
 
