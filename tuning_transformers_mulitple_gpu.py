@@ -32,6 +32,8 @@ target_cols = ["FE", "NAE", "NAW", "NE", "SE", "SAW", "SAE"]
 
 target_cols = ["SAW_selection","SAW_forced_window", "SAE_selection", "SAE_forced_window"]
 
+target_cols = ["SAW", "SAE"]
+
 
 deleted_weeks_list = [0]
 
