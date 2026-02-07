@@ -1807,7 +1807,7 @@ X_feat_h1 = X_feat_h[HORIZON]  # (N_GLOBAL, n_cov)
 # ------------------------------------------------------------
 # Select top-20 features by mean |SHAP|
 # ------------------------------------------------------------
-top_k = 12
+top_k = 15
 importance_h1 = np.mean(np.abs(shap_feat_h1), axis=0)
 top_idx_20 = np.argsort(importance_h1)[::-1][:top_k]
 
@@ -1830,45 +1830,44 @@ exp_h1 = shap.Explanation(
 # ------------------------------------------------------------
 # Plot beeswarm
 # ------------------------------------------------------------
-plt.figure(figsize=(10, 6))
-
-shap.plots.beeswarm(
-    exp_h1,
-    max_display=12,
-    show=False,
-    color_bar=False  # <<< FIX
-)
-shap.plots.beeswarm(exp_h1, max_display=12, show=False, color_bar=False)
 
 
 
-# plt.title("Top-20 Features — DeepSHAP Beeswarm (Horizon 1)")
-plt.tight_layout()
-plt.savefig(
-    f"plots/deepshap_beeswarm_top20_{target_col}_H1_{test_size}.png",
-    dpi=500,
-    bbox_inches="tight"
-)
-plt.show()
-
-
-# SECOND PLOT
+# FINAL BEESAWRM WITH CUSTOM LEGEND (LOW/HIGH FEATURE VALUES)
+import matplotlib.lines as mlines
 
 plt.figure(figsize=(10, 6))
 
 shap.plots.beeswarm(
     exp_h1,
-    max_display=12,
+    max_display=15,
     show=False,
-    color_bar=False
+    color_bar=False  # disable gradient bar
+)
+
+# ---- custom legend ----
+low = mlines.Line2D([], [], color='blue', marker='o',
+                    linestyle='None', markersize=8,
+                    label='Low feature value')
+
+high = mlines.Line2D([], [], color='red', marker='o',
+                     linestyle='None', markersize=8,
+                     label='High feature value')
+
+plt.legend(
+    handles=[low, high],
+    frameon=False,
+    loc="lower left",
+    bbox_to_anchor=(0.65, 0),
+    fontsize=12
 )
 
 plt.xlabel("SHAP value", fontsize=12)
-
-plt.tight_layout()
+plt.yticks(fontsize=14)  # pick your size
+# plt.tight_layout(rect=[0, 0, 1, 1])
 plt.savefig(
     f"plots/deepshap_beeswarm_top20_{target_col}_H1_{test_size}.png",
-    dpi=500,
+    dpi=300,
     bbox_inches="tight"
 )
 plt.show()
