@@ -20,11 +20,11 @@ from functions import run_transformer_with_for, clean_gpu
 # ============================================================
 #  GLOBAL CONFIG
 # ============================================================
-initial_test_size = 4
+initial_test_size = 12
 number_test_sets = 3
 iterations = 100
 
-patience = 200
+patience = 100
 min_delta = 1e-5
 seed = 1048596
 

@@ -1,28 +1,23 @@
 import os
 import warnings
+import subprocess
+from datetime import datetime
+from pathlib import Path
+from multiprocessing import Process, set_start_method
 
 warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
 import csv
-from lightning import seed_everything
-from ax.service.ax_client import AxClient
-from ax.service.utils.instantiation import ObjectiveProperties
-from datetime import datetime
-from pathlib import Path
-from multiprocessing import Process
-import torch
-from functions import run_darts_tft_with_for, clean_gpu
 
 # ============================================================
 # CONFIG
 # ============================================================
-prediction_size = 12
 number_test_sets = 3
 iterations = 100
 
-patience = 100
+patience = 50
 min_delta = 1e-5
 seed = 1048596
 metric = "mape"
@@ -30,14 +25,40 @@ country = "chile"
 
 
 # ============================================================
-# WORKER: ONE GPU, MANY TARGETS
+# UTILS
 # ============================================================
-def run_targets_on_gpu(gpu_id, target_cols):
-    import torch
+def get_gpu_count() -> int:
+    """Windows-safe GPU count (does not import torch / init CUDA)."""
+    out = subprocess.check_output(
+        ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+        stderr=subprocess.STDOUT,
+    ).decode(errors="ignore")
+    names = [line.strip() for line in out.splitlines() if line.strip()]
+    return len(names)
+
+
+# ============================================================
+# WORKER: ONE GPU, MANY JOBS
+#   - IMPORTANT: Set CUDA_VISIBLE_DEVICES BEFORE importing torch or anything
+#     that may import torch (lightning/darts/your functions module).
+# ============================================================
+def run_targets_on_gpu(gpu_id: int, targets):
+    # Must be set before importing torch / lightning / darts / your functions module
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+
+    import torch
     torch.cuda.set_device(0)
 
-    print(f"\n GPU {gpu_id} handling targets: {target_cols}")
+    # Import torch-dependent modules AFTER masking
+    from lightning import seed_everything
+    from ax.service.ax_client import AxClient
+    from ax.service.utils.instantiation import ObjectiveProperties
+    from functions import run_darts_tft_with_for, clean_gpu
+
+    print("\n" + "_" * 95)
+    print(f"Worker GPU_ID={gpu_id} | CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}")
+    print(f"torch sees {torch.cuda.device_count()} GPU(s); device0={torch.cuda.get_device_name(0)}")
+    print("_" * 95 + "\n")
 
     seed_everything(seed, workers=True)
 
@@ -45,8 +66,9 @@ def run_targets_on_gpu(gpu_id, target_cols):
     df["FECHA"] = pd.to_datetime(df["FECHA"])
     df = df.sort_values("FECHA")
 
-    for target_col in target_cols:
-        print(f"\n=== GPU {gpu_id} | Target {target_col} ===")
+    for target_col, prediction_size in targets:
+        print(f"\n=== GPU {gpu_id} | Target {target_col} | Horizon {prediction_size} ===")
+        print("_" * 95)
 
         # ---------------- CSV ----------------
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -55,32 +77,39 @@ def run_targets_on_gpu(gpu_id, target_cols):
 
         csv_path = results_dir / f"tft_trials_{country}_{target_col}_{timestamp}_{prediction_size}.csv"
         csv_file = csv_path.open("w", newline="")
-        csv_writer = csv.DictWriter(csv_file, fieldnames=[
-            "trial_index",
-            "test_size",
-            "window_size",
-            "hidden_size",
-            "lstm_layers",
-            "num_attention_heads",
-            "dropout",
-            "batch_size",
-            "lr",
-            "epochs",
-            "grad_clip",
-            "mae", "mape", "mse", "rmse", "r2",
-            "sd",
-            "runtime_s",
-            "started_at",
-            "epochs_ran",
-        ])
+        csv_writer = csv.DictWriter(
+            csv_file,
+            fieldnames=[
+                "trial_index",
+                "test_size",
+                "window_size",
+                "hidden_size",
+                "lstm_layers",
+                "num_attention_heads",
+                "dropout",
+                "batch_size",
+                "lr",
+                "epochs",
+                "grad_clip",
+                "mae",
+                "mape",
+                "mse",
+                "rmse",
+                "r2",
+                "sd",
+                "runtime_s",
+                "started_at",
+                "epochs_ran",
+            ],
+        )
         csv_writer.writeheader()
 
         # ---------------- AX ----------------
         ax = AxClient()
         ax.create_experiment(
-            name=f"tft_{target_col}",
+            name=f"tft_{target_col}_H{prediction_size}_gpu{gpu_id}",
             parameters=[
-                {"name": "test_size", "type": "choice", "values": [prediction_size], "value_type": "int"},
+                {"name": "test_size", "type": "choice", "values": [int(prediction_size)], "value_type": "int"},
                 {"name": "window_size", "type": "range", "bounds": [8, 32], "value_type": "int"},
                 {"name": "hidden_size", "type": "choice", "values": [32, 64, 128], "value_type": "int"},
                 {"name": "lstm_layers", "type": "range", "bounds": [1, 4], "value_type": "int"},
@@ -96,7 +125,7 @@ def run_targets_on_gpu(gpu_id, target_cols):
 
         # ---------------- LOOP ----------------
         for i in range(iterations):
-            print(f"GPU {gpu_id} | {target_col} | Trial {i + 1}/{iterations}")
+            print(f"GPU {gpu_id} | {target_col} | H={prediction_size} | Trial {i + 1}/{iterations}")
 
             params, trial_index = ax.get_next_trial()
             started_at = datetime.now()
@@ -106,7 +135,7 @@ def run_targets_on_gpu(gpu_id, target_cols):
                 tmp = df.copy()
                 deleted_sample = int(params["test_size"])
                 if deleted_sample > 0:
-                    tmp = tmp.iloc[:-deleted_sample * number_test_sets]
+                    tmp = tmp.iloc[: -deleted_sample * number_test_sets]
 
                 mae, mape, mse, rmse, r2, epochs_ran, sd = run_darts_tft_with_for(
                     df=tmp,
@@ -130,24 +159,30 @@ def run_targets_on_gpu(gpu_id, target_cols):
                 runtime_s = (datetime.now() - started_at).total_seconds()
                 ax.complete_trial(trial_index, raw_data={metric: float(mape)})
 
-                csv_writer.writerow({
-                    "trial_index": trial_index,
-                    "test_size": params["test_size"],
-                    "window_size": params["window_size"],
-                    "hidden_size": params["hidden_size"],
-                    "lstm_layers": params["lstm_layers"],
-                    "num_attention_heads": params["num_attention_heads"],
-                    "dropout": params["dropout"],
-                    "batch_size": params["batch_size"],
-                    "lr": params["lr"],
-                    "epochs": params["epochs"],
-                    "grad_clip": params["grad_clip"],
-                    "mae": mae, "mape": mape, "mse": mse,
-                    "rmse": rmse, "r2": r2, "sd": sd,
-                    "runtime_s": runtime_s,
-                    "started_at": started_at.isoformat(timespec="seconds"),
-                    "epochs_ran": epochs_ran,
-                })
+                csv_writer.writerow(
+                    {
+                        "trial_index": trial_index,
+                        "test_size": params["test_size"],
+                        "window_size": params["window_size"],
+                        "hidden_size": params["hidden_size"],
+                        "lstm_layers": params["lstm_layers"],
+                        "num_attention_heads": params["num_attention_heads"],
+                        "dropout": params["dropout"],
+                        "batch_size": params["batch_size"],
+                        "lr": params["lr"],
+                        "epochs": params["epochs"],
+                        "grad_clip": params["grad_clip"],
+                        "mae": mae,
+                        "mape": mape,
+                        "mse": mse,
+                        "rmse": rmse,
+                        "r2": r2,
+                        "sd": sd,
+                        "runtime_s": runtime_s,
+                        "started_at": started_at.isoformat(timespec="seconds"),
+                        "epochs_ran": epochs_ran,
+                    }
+                )
                 csv_file.flush()
 
             except Exception as e:
@@ -155,22 +190,33 @@ def run_targets_on_gpu(gpu_id, target_cols):
                 ax.log_trial_failure(trial_index)
 
         csv_file.close()
-        print(f" Finished target {target_col} on GPU {gpu_id}")
+        print(f"Finished target {target_col} | H={prediction_size} on worker GPU {gpu_id}")
 
 
 # ============================================================
 # MAIN
 # ============================================================
 if __name__ == "__main__":
+    # Windows: make spawn explicit and consistent
+    set_start_method("spawn", force=True)
 
-    target_cols = ["FE", "NAE", "NAW", "NE", "SE"]
-    n_gpus = torch.cuda.device_count()
+    target_cols = ["SE"]
+    prediction_sizes = [4, 12]
 
-    splits = np.array_split(target_cols, n_gpus)
+    n_gpus = get_gpu_count()
+    if n_gpus <= 0:
+        raise RuntimeError("No GPUs detected by nvidia-smi.")
+
+    jobs = [(t, p) for t in target_cols for p in prediction_sizes]
+    splits = np.array_split(jobs, n_gpus)
 
     processes = []
-    for gpu_id, targets in enumerate(splits):
-        p = Process(target=run_targets_on_gpu, args=(gpu_id, list(targets)))
+    for gpu_id, split_jobs in enumerate(splits):
+        split_jobs = list(split_jobs)
+        if len(split_jobs) == 0:
+            continue
+
+        p = Process(target=run_targets_on_gpu, args=(gpu_id, split_jobs))
         p.start()
         processes.append(p)
 
