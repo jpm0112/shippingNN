@@ -3,7 +3,8 @@ import warnings
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from multiprocessing import Process, set_start_method
+from multiprocessing import Process, Queue, set_start_method
+import gc
 
 warnings.filterwarnings("ignore")
 
@@ -28,7 +29,6 @@ country = "chile"
 # UTILS
 # ============================================================
 def get_gpu_count() -> int:
-    """Windows-safe GPU count (does not import torch / init CUDA)."""
     out = subprocess.check_output(
         ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
         stderr=subprocess.STDOUT,
@@ -38,26 +38,68 @@ def get_gpu_count() -> int:
 
 
 # ============================================================
-# WORKER: ONE GPU, MANY JOBS
-#   - IMPORTANT: Set CUDA_VISIBLE_DEVICES BEFORE importing torch or anything
-#     that may import torch (lightning/darts/your functions module).
+# TRIAL SUBPROCESS (runs ONE trial only)
+# ============================================================
+def trial_worker(q, params, df, target_col, prediction_size):
+    try:
+        import torch
+        from functions import run_darts_tft_with_for
+
+        tmp = df.copy()
+        deleted_sample = int(params["test_size"])
+        if deleted_sample > 0:
+            tmp = tmp.iloc[: -deleted_sample * number_test_sets]
+
+        mae, mape, mse, rmse, r2, epochs_ran, sd = run_darts_tft_with_for(
+            df=tmp,
+            target_col=target_col,
+            test_size=int(params["test_size"]),
+            window_size=int(params["window_size"]),
+            hidden_size=int(params["hidden_size"]),
+            lstm_layers=int(params["lstm_layers"]),
+            num_attention_heads=int(params["num_attention_heads"]),
+            dropout=float(params["dropout"]),
+            batch_size=int(params["batch_size"]),
+            n_epochs=int(params["epochs"]),
+            lr=float(params["lr"]),
+            grad_clip=float(params["grad_clip"]),
+            patience=patience,
+            min_delta=min_delta,
+            seed=seed,
+            sample_sets=3,
+        )
+
+        q.put((mae, mape, mse, rmse, r2, epochs_ran, sd))
+
+    except Exception as e:
+        q.put(e)
+
+    finally:
+        gc.collect()
+        try:
+            import torch
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+        except:
+            pass
+
+
+# ============================================================
+# WORKER: ONE GPU
 # ============================================================
 def run_targets_on_gpu(gpu_id: int, targets):
-    # Must be set before importing torch / lightning / darts / your functions module
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
     import torch
     torch.cuda.set_device(0)
 
-    # Import torch-dependent modules AFTER masking
     from lightning import seed_everything
     from ax.service.ax_client import AxClient
     from ax.service.utils.instantiation import ObjectiveProperties
-    from functions import run_darts_tft_with_for, clean_gpu
 
     print("\n" + "_" * 95)
-    print(f"Worker GPU_ID={gpu_id} | CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}")
-    print(f"torch sees {torch.cuda.device_count()} GPU(s); device0={torch.cuda.get_device_name(0)}")
+    print(f"Worker GPU_ID={gpu_id}")
+    print(f"torch sees {torch.cuda.device_count()} GPU(s)")
     print("_" * 95 + "\n")
 
     seed_everything(seed, workers=True)
@@ -67,10 +109,7 @@ def run_targets_on_gpu(gpu_id: int, targets):
     df = df.sort_values("FECHA")
 
     for target_col, prediction_size in targets:
-        print(f"\n=== GPU {gpu_id} | Target {target_col} | Horizon {prediction_size} ===")
-        print("_" * 95)
 
-        # ---------------- CSV ----------------
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         results_dir = Path("results")
         results_dir.mkdir(parents=True, exist_ok=True)
@@ -80,31 +119,14 @@ def run_targets_on_gpu(gpu_id: int, targets):
         csv_writer = csv.DictWriter(
             csv_file,
             fieldnames=[
-                "trial_index",
-                "test_size",
-                "window_size",
-                "hidden_size",
-                "lstm_layers",
-                "num_attention_heads",
-                "dropout",
-                "batch_size",
-                "lr",
-                "epochs",
-                "grad_clip",
-                "mae",
-                "mape",
-                "mse",
-                "rmse",
-                "r2",
-                "sd",
-                "runtime_s",
-                "started_at",
-                "epochs_ran",
+                "trial_index", "test_size", "window_size", "hidden_size",
+                "lstm_layers", "num_attention_heads", "dropout", "batch_size",
+                "lr", "epochs", "grad_clip", "mae", "mape", "mse", "rmse",
+                "r2", "sd", "runtime_s", "started_at", "epochs_ran",
             ],
         )
         csv_writer.writeheader()
 
-        # ---------------- AX ----------------
         ax = AxClient()
         ax.create_experiment(
             name=f"tft_{target_col}_H{prediction_size}_gpu{gpu_id}",
@@ -123,89 +145,61 @@ def run_targets_on_gpu(gpu_id: int, targets):
             objectives={metric: ObjectiveProperties(minimize=True)},
         )
 
-        # ---------------- LOOP ----------------
         for i in range(iterations):
-            print(f"GPU {gpu_id} | {target_col} | H={prediction_size} | Trial {i + 1}/{iterations}")
+
+            print(f"GPU {gpu_id} | {target_col} | Trial {i + 1}/{iterations}")
 
             params, trial_index = ax.get_next_trial()
             started_at = datetime.now()
-            clean_gpu()
 
-            try:
-                tmp = df.copy()
-                deleted_sample = int(params["test_size"])
-                if deleted_sample > 0:
-                    tmp = tmp.iloc[: -deleted_sample * number_test_sets]
+            q = Queue()
+            p = Process(
+                target=trial_worker,
+                args=(q, params, df, target_col, prediction_size),
+            )
 
-                mae, mape, mse, rmse, r2, epochs_ran, sd = run_darts_tft_with_for(
-                    df=tmp,
-                    target_col=target_col,
-                    test_size=int(params["test_size"]),
-                    window_size=int(params["window_size"]),
-                    hidden_size=int(params["hidden_size"]),
-                    lstm_layers=int(params["lstm_layers"]),
-                    num_attention_heads=int(params["num_attention_heads"]),
-                    dropout=float(params["dropout"]),
-                    batch_size=int(params["batch_size"]),
-                    n_epochs=int(params["epochs"]),
-                    lr=float(params["lr"]),
-                    grad_clip=float(params["grad_clip"]),
-                    patience=patience,
-                    min_delta=min_delta,
-                    seed=seed,
-                    sample_sets=3,
-                )
+            p.start()
+            p.join()
 
-                runtime_s = (datetime.now() - started_at).total_seconds()
-                ax.complete_trial(trial_index, raw_data={metric: float(mape)})
+            result = q.get()
 
-                csv_writer.writerow(
-                    {
-                        "trial_index": trial_index,
-                        "test_size": params["test_size"],
-                        "window_size": params["window_size"],
-                        "hidden_size": params["hidden_size"],
-                        "lstm_layers": params["lstm_layers"],
-                        "num_attention_heads": params["num_attention_heads"],
-                        "dropout": params["dropout"],
-                        "batch_size": params["batch_size"],
-                        "lr": params["lr"],
-                        "epochs": params["epochs"],
-                        "grad_clip": params["grad_clip"],
-                        "mae": mae,
-                        "mape": mape,
-                        "mse": mse,
-                        "rmse": rmse,
-                        "r2": r2,
-                        "sd": sd,
-                        "runtime_s": runtime_s,
-                        "started_at": started_at.isoformat(timespec="seconds"),
-                        "epochs_ran": epochs_ran,
-                    }
-                )
-                csv_file.flush()
-
-            except Exception as e:
-                print("Error:", e)
+            if isinstance(result, Exception):
+                print("Trial failed:", result)
                 ax.log_trial_failure(trial_index)
+                continue
+
+            mae, mape, mse, rmse, r2, epochs_ran, sd = result
+            runtime_s = (datetime.now() - started_at).total_seconds()
+
+            ax.complete_trial(trial_index, raw_data={metric: float(mape)})
+
+            csv_writer.writerow({
+                "trial_index": trial_index,
+                **params,
+                "mae": mae, "mape": mape, "mse": mse, "rmse": rmse,
+                "r2": r2, "sd": sd,
+                "runtime_s": runtime_s,
+                "started_at": started_at.isoformat(timespec="seconds"),
+                "epochs_ran": epochs_ran,
+            })
+            csv_file.flush()
 
         csv_file.close()
-        print(f"Finished target {target_col} | H={prediction_size} on worker GPU {gpu_id}")
 
 
 # ============================================================
 # MAIN
 # ============================================================
 if __name__ == "__main__":
-    # Windows: make spawn explicit and consistent
+
     set_start_method("spawn", force=True)
 
     target_cols = ["SE"]
-    prediction_sizes = [4, 12]
+    prediction_sizes = [12, 4]
 
     n_gpus = get_gpu_count()
     if n_gpus <= 0:
-        raise RuntimeError("No GPUs detected by nvidia-smi.")
+        raise RuntimeError("No GPUs detected.")
 
     jobs = [(t, p) for t in target_cols for p in prediction_sizes]
     splits = np.array_split(jobs, n_gpus)
@@ -213,7 +207,7 @@ if __name__ == "__main__":
     processes = []
     for gpu_id, split_jobs in enumerate(splits):
         split_jobs = list(split_jobs)
-        if len(split_jobs) == 0:
+        if not split_jobs:
             continue
 
         p = Process(target=run_targets_on_gpu, args=(gpu_id, split_jobs))
