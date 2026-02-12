@@ -1150,7 +1150,7 @@ plt.gca().invert_yaxis()
 
 plt.yticks(y_positions, y_labels)
 plt.axvline(0, color="black", linewidth=0.8)
-plt.xlabel("Aggregated contribution", fontsize=16)
+plt.xlabel("Aggregated contribution", fontsize=14)
 plt.ylabel("")
 plt.tight_layout()
 plt.yticks(fontsize=16)
@@ -1495,18 +1495,17 @@ waterfall_exp = shap.Explanation(
     feature_names=feature_names
 )
 
-plt.figure(figsize=(8, 6))  # instead of (8,6)
 
-shap.plots.waterfall(waterfall_exp, max_display=10, show=False)
-# shap.waterfall_plot(waterfall_exp, max_display=10)
+# plt.rcParams['xtick.labelsize'] = 18
+# plt.rcParams['ytick.labelsize'] = 18
+# plt.rcParams['font.size'] = 18
 
-# plt.title(
-#     f"DeepSHAP Waterfall by Feature (Instance {instance_idx}, "
-#     f"Horizon {HORIZON_TO_EXPLAIN + 1}/{H})"
-# )
-#set tick fontsize
-plt.yticks(fontsize=16)
-plt.xticks(fontsize=16)
+plt.rcParams["figure.figsize"] = (10, 4)
+shap.plots.waterfall(waterfall_exp, max_display=5, show=False)
+ax = plt.gca()  # get SHAP axis
+# ax.tick_params(axis='both', labelsize=16)
+# ax.set_yticklabels(ax.get_yticklabels(), fontsize=20)
+
 plt.tight_layout()
 plt.savefig(
     f"plots/deepshap_waterfall_by_feature_{target_col}_H{test_size}_inst{instance_idx}.png",
@@ -1515,56 +1514,41 @@ plt.savefig(
 )
 plt.show()
 plt.close()
-# plt.figure(figsize=(12, 7))
-shap.waterfall_plot(waterfall_exp, max_display=11)
 
-plt.draw()
 
-plt.gcf().savefig(
-    f"plots/deepshap_average_waterfall_{target_col}_H{test_size}.png",
-    dpi=300,
-    bbox_inches="tight"
-)
-plt.close()
 
-import matplotlib.pyplot as plt
 
-fig = plt.figure()
 
-shap.waterfall_plot(waterfall_exp, max_display=11, show=False)
 
-fig = plt.gcf()  # grab the REAL figure
 
-fig.savefig(
-    f"plots/deepshap_average_waterfall_{target_col}_H{test_size}.png",
-    dpi=300,
-    bbox_inches="tight"
-)
 
-plt.close(fig)
+
+
+
+
+
+
+
+
 
 # ------------------------------------------------------------
 # "Average" (aggregated) waterfall — FEATURE level
 # ------------------------------------------------------------
 
 shap_mean_feat = shap_values.mean(axis=0).sum(axis=0)  # mean over samples, sum over lags
-
 waterfall_exp = shap.Explanation(
     values=shap_mean_feat,
     base_values=base_value,
     feature_names=feature_names
 )
-
-plt.figure(figsize=(8, 6))
+plt.figure(figsize=(10, 6))
 shap.plots.waterfall(
     waterfall_exp,
     max_display=6,
     show=False
 )
-
 # plt.title("Average DeepSHAP Waterfall (aggregated over samples)")
 plt.tight_layout()
-
 plt.savefig(
     f"plots/deepshap_average_waterfall_{target_col}_H{test_size}.png",
     dpi=300,
@@ -1574,11 +1558,54 @@ plt.savefig(
 plt.show()
 
 
+#___________________________________________________________
 
 
+import matplotlib.pyplot as plt
+import numpy as np
+import shap
 
+# ---- Aggregate SHAP ----
+shap_mean_feat = shap_values.mean(axis=0).sum(axis=0)
 
+waterfall_exp = shap.Explanation(
+    values=shap_mean_feat,
+    base_values=base_value,
+    feature_names=feature_names
+)
 
+# ---- Draw SHAP plot ----
+shap.plots.waterfall(
+    waterfall_exp,
+    max_display=6,
+    show=False
+)
+
+# ---- Resize figure AFTER SHAP draws it ----
+fig = plt.gcf()
+fig.set_size_inches(10, 4)  # width, height
+
+ax = plt.gca()
+
+# ---- Expand x-limits to avoid cropping numbers ----
+xmin, xmax = ax.get_xlim()
+margin = 0.15 * (xmax - xmin)
+ax.set_xlim(xmin - margin, xmax + margin)
+
+# Optional: slightly larger tick labels
+ax.tick_params(axis='both', labelsize=12)
+
+# ---- Final layout ----
+fig.tight_layout()
+
+fig.savefig(
+    f"plots/deepshap_average_waterfall_{target_col}_H{test_size}.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+plt.close(fig)
 
 # ============================================================
 

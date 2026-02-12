@@ -26,7 +26,7 @@ for target_col in target_cols:
 
 
 
-    test_size = 4  # H
+    test_size = 12  # H
     window_size = 40  # n_lags
     n_splits = 10
     sample_sets = 3  # number of test sets (like your TFT function)
@@ -68,6 +68,12 @@ for target_col in target_cols:
     df = pd.read_csv("weekly_chile_data.csv")
     df["FECHA"] = pd.to_datetime(df["FECHA"])
     df = df.sort_values("FECHA").reset_index(drop=True)
+
+
+    #for validaiton set
+    # deleted_sample = test_size * 3
+    # if deleted_sample > 0:
+    #     df = df.iloc[:-deleted_sample]
 
 
     # ============================================================
@@ -200,7 +206,7 @@ for target_col in target_cols:
             np.random.seed(seed + i)
             random_number = i
             # random_number = np.random.randint(0, 20)
-            deleted_sample = test_size * (i + random_number)  # EXACTLY like your TFT function
+            deleted_sample = test_size * (i)  # EXACTLY like your TFT function
             if deleted_sample > 0:
                 tmp = tmp.iloc[:-deleted_sample]
 
@@ -217,7 +223,7 @@ for target_col in target_cols:
             rmse_values.append(rmse)
             r2_values.append(r2)
 
-        print("MAPEs per test set:", mape_values)
+        print("MAPEs per test set:", np.mean(mape_values))
 
         # epochs dummy for non-neural models
         mean_epochs = np.nan
@@ -293,18 +299,18 @@ for target_col in target_cols:
     # write_one_row_csv("lasso_recursive", metrics_rec, start, runtime)
 
     # Naive last
-    start = datetime.now()
-    metrics_naive = eval_with_for(
-        df=df,
-        method_fn=predict_naive_last,
-        target_col=target_col,
-        test_size=test_size,
-        n_lags=window_size,
-        n_splits=None,
-        sample_sets=sample_sets
-    )
-    runtime = (datetime.now() - start).total_seconds()
-    print("[NAIVE_LAST]", metrics_naive)
-    write_one_row_csv("naive_last", metrics_naive, start, runtime)
+    # start = datetime.now()
+    # metrics_naive = eval_with_for(
+    #     df=df,
+    #     method_fn=predict_naive_last,
+    #     target_col=target_col,
+    #     test_size=test_size,
+    #     n_lags=window_size,
+    #     n_splits=None,
+    #     sample_sets=sample_sets
+    # )
+    # runtime = (datetime.now() - start).total_seconds()
+    # print("[NAIVE_LAST]", metrics_naive)
+    # write_one_row_csv("naive_last", metrics_naive, start, runtime)
 
     print("\nDone.")
