@@ -194,8 +194,8 @@ if __name__ == "__main__":
 
     set_start_method("spawn", force=True)
 
-    target_cols = ["SE"]
-    prediction_sizes = [12, 4]
+    target_cols = ["NAW","FE"]
+    prediction_sizes = [12]
 
     n_gpus = get_gpu_count()
     if n_gpus <= 0:

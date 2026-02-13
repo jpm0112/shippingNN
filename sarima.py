@@ -32,6 +32,20 @@ p, d, q, P, D, Q, m = 3, 0, 2, 2, 0, 0, 52 #NAE
 target_col = 'FE'
 p, d, q, P, D, Q, m = 1, 2, 2, 0, 0, 1, 52 #FE
 
+test_size = 12
+
+target_col = 'FE'
+p, d, q, P, D, Q, m = 4, 0, 3, 2, 0, 0, 52  # FE (best run)
+target_col = 'NAE'
+p, d, q, P, D, Q, m = 2, 1, 3, 1, 0, 0, 52  # NAE
+target_col = 'NAW'
+p, d, q, P, D, Q, m = 3, 1, 2, 1, 0, 0, 52  # NAW
+target_col = 'NE'
+p, d, q, P, D, Q, m = 2, 1, 2, 1, 0, 0, 52  # NE
+target_col = 'SE'
+p, d, q, P, D, Q, m = 4, 1, 1, 0, 0, 0, 52  # SE
+
+
 
 mae, mape, mse, rmse, r2, epochs_ran, sd = run_sarima_with_for(df,
                                                                target_col,
