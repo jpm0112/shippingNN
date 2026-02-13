@@ -1,10 +1,7 @@
 import warnings
-import sys
 
-from xai_kz_lime import yticks
 
 warnings.filterwarnings("ignore")
-import pytorch_lightning as pl
 import pandas as pd
 import torch
 import numpy as np
@@ -1115,7 +1112,7 @@ feat_horizon["feature_h"] = (
 # 7) FEATURE × HORIZON BAR PLOT
 # ------------------------------------------------------------
 
-plt.figure(figsize=(8, 6))
+plt.figure(figsize=(8, 6)) # original (8, 6)   8,14 for 12 hroizon
 
 y_positions = []
 y_labels = []
