@@ -256,8 +256,12 @@ if __name__ == "__main__":
         raise RuntimeError("No GPUs detected.")
 
     jobs = [
-        ("NAW", 12),
-        ("FE", 12),
+        ("SAE", 12),
+        ("SAW", 12),
+        ("NAE", 12),
+        ("NE", 12),
+        ("NE", 4),
+        ("SE", 12),
     ]
 
     splits = np.array_split(jobs, available_gpus)
