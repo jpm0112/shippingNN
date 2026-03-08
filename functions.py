@@ -942,7 +942,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     return real, preds, [model, X_test_compat, X_train_compat, feature_cols, epochs_run]
 
 
-def run_transformer_xai(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr,
+def run_transformer_xai_old(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number, lr,
                     dropout,
                     device, seed, optimizer_type='adam', weight_decay=1e-4, early_stop=True, patience=200,
                     min_delta=1e-5):
@@ -1157,6 +1157,233 @@ def run_transformer_xai(df, target_col, window_size, test_size, batch_size, d_mo
 
     return real, preds, out_list
 
+
+def run_transformer_xai(df, target_col, window_size, test_size, batch_size, d_model, n_head, num_layers, epoch_number,
+                        lr,
+                        dropout,
+                        device, seed, optimizer_type='adam', weight_decay=1e-4, early_stop=True, patience=200,
+                        min_delta=1e-5):
+    seed_everything(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    print(f"Using device: {device_info(device)}")
+
+    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
+
+    horizon = test_size
+    val_size = test_size
+    train_df = df[:-horizon]
+    test_df = df[-horizon:]
+
+    train_features = train_df[feature_cols].values
+    train_target = train_df[target_col].values
+    min_vals = train_features.min(axis=0)
+    max_vals = train_features.max(axis=0)
+    target_min = train_target.min()
+    target_max = train_target.max()
+
+    scaled_train = (train_features - min_vals) / (max_vals - min_vals + 1e-8)
+    scaled_target = (train_target - target_min) / (target_max - target_min + 1e-8)
+
+    split_idx = len(train_df) - val_size
+
+    X_tr, y_tr, X_va, y_va = [], [], [], []
+    for i in range(0, len(train_df) - window_size - horizon + 1):
+        x_start = i
+        x_end = i + window_size
+        y_start = x_end
+        y_end = y_start + horizon
+
+        x_win = scaled_train[x_start:x_end]
+        y_win = scaled_target[y_start:y_end]
+
+        if y_end <= split_idx:
+            X_tr.append(x_win);
+            y_tr.append(y_win)
+        elif y_start >= split_idx:
+            X_va.append(x_win);
+            y_va.append(y_win)
+
+    X_tr, y_tr = np.array(X_tr), np.array(y_tr)
+    X_va, y_va = np.array(X_va), np.array(y_va)
+
+    if len(X_tr) == 0 or len(X_va) == 0:
+        raise ValueError(
+            f"Not enough data to build windows: got X_tr={len(X_tr)}, X_va={len(X_va)}. "
+            f"Try smaller window_size/horizon or larger dataset."
+        )
+
+    train_loader = DataLoader(TensorDataset(
+        torch.tensor(X_tr, dtype=torch.float32),
+        torch.tensor(y_tr, dtype=torch.float32)
+    ), batch_size=batch_size, shuffle=True)
+
+    val_loader = DataLoader(TensorDataset(
+        torch.tensor(X_va, dtype=torch.float32),
+        torch.tensor(y_va, dtype=torch.float32)
+    ), batch_size=batch_size, shuffle=False)
+
+    # ===== Model with attention collection =====
+    class CustomEncoderLayer(nn.Module):
+        def __init__(self, d_model, nhead, dropout):
+            super().__init__()
+            self.layer = nn.TransformerEncoderLayer(
+                d_model=d_model,
+                nhead=nhead,
+                dropout=dropout,
+                batch_first=True
+            )
+
+        def forward(self, x, return_attn=True):
+            # replicate TransformerEncoderLayer forward, but ask MHA for weights
+            # NOTE: This uses the internal self_attn module from the layer.
+            sa = self.layer.self_attn
+
+            # --- Self-attention block ---
+            x2, attn = sa(
+                x, x, x,
+                need_weights=return_attn,
+                average_attn_weights=False
+            )
+            x = x + self.layer.dropout1(x2)
+            x = self.layer.norm1(x)
+
+            # --- FFN block ---
+            x2 = self.layer.linear2(self.layer.dropout(self.layer.activation(self.layer.linear1(x))))
+            x = x + self.layer.dropout2(x2)
+            x = self.layer.norm2(x)
+
+            return x, attn  # attn is None unless return_attn=True
+
+    class TransformerForecast(nn.Module):
+        def __init__(self, input_size, d_model=d_model, nhead=n_head,
+                     num_layers=num_layers, max_len=window_size):
+            super().__init__()
+            self.input_linear = nn.Linear(input_size, d_model)
+
+            self.positional_encoding = nn.Parameter(torch.zeros(1, max_len, d_model))
+            nn.init.normal_(self.positional_encoding, std=0.02)
+
+            self.layers = nn.ModuleList([CustomEncoderLayer(d_model, nhead, dropout) for _ in range(num_layers)])
+            self.fc = nn.Linear(d_model, horizon)
+
+        def forward(self, x, return_attn=False):
+            x = self.input_linear(x)  # (B, T, D)
+            x = x + self.positional_encoding[:, :x.size(1), :]
+
+            attn_list = []
+            for layer in self.layers:
+                x, attn = layer(x, return_attn=return_attn)
+                if return_attn:
+                    attn_list.append(attn)  # (B, n_head, T, T)
+
+            out = x[:, -1, :]
+            preds = self.fc(out)
+            return (preds, attn_list) if return_attn else preds
+
+    model = TransformerForecast(input_size=X_tr.shape[2]).to(device)
+
+    criterion = nn.MSELoss()
+    if optimizer_type == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    if optimizer_type == 'adamw':
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    if optimizer_type == 'sgd':
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=0.9)
+    if optimizer_type == 'Adagrad':
+        optimizer = torch.optim.Adagrad(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    import copy
+    best_val_loss = float("inf")
+    best_state = None
+    epochs_no_improve = 0
+    epochs_run = 0
+
+    for epoch in range(epoch_number):
+        model.train()
+        running_loss = 0.0
+        n_samples = 0
+
+        for batch_X, batch_y in train_loader:
+            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
+
+            optimizer.zero_grad()
+            output = model(batch_X)  # unchanged
+            loss = criterion(output, batch_y)
+            loss.backward()
+            optimizer.step()
+
+            bs_actual = batch_X.size(0)
+            running_loss += loss.item() * bs_actual
+            n_samples += bs_actual
+
+        train_loss = running_loss / max(n_samples, 1)
+        epochs_run = epoch + 1
+
+        model.eval()
+        val_running = 0.0
+        val_samples = 0
+        with torch.no_grad():
+            for val_X, val_y in val_loader:
+                val_X, val_y = val_X.to(device), val_y.to(device)
+                val_out = model(val_X)  # unchanged
+                vloss = criterion(val_out, val_y)
+
+                bs = val_X.size(0)
+                val_running += vloss.item() * bs
+                val_samples += bs
+
+        val_loss = val_running / max(val_samples, 1)
+
+        if (epoch + 1) % 10 == 0:
+            print(f"Epoch {epoch + 1}, train_loss: {train_loss:.4f}, val_loss: {val_loss:.4f}")
+
+        if early_stop:
+            if best_val_loss - val_loss > min_delta:
+                best_val_loss = val_loss
+                best_state = copy.deepcopy(model.state_dict())
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+            if epochs_no_improve >= patience:
+                print(f"Early stopping at epoch {epoch + 1} (best_val_loss={best_val_loss:.4f})")
+                break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    # ===== Evaluation + Attention on the final window =====
+    X0 = scaled_train[-window_size:]
+    X0_tensor = torch.tensor(X0, dtype=torch.float32).unsqueeze(0).to(device)
+
+    model.eval()
+    with torch.no_grad():
+        preds_scaled, attn_list = model(X0_tensor, return_attn=True)  # <-- attention here
+        preds_scaled = preds_scaled.squeeze(0).cpu().numpy()  # (horizon,)
+
+    preds = preds_scaled * (target_max - target_min + 1e-8) + target_min
+    real = test_df[target_col].values
+
+    # ---- compat outputs ----
+    X_test_compat = np.repeat(X0[np.newaxis, :, :], horizon, axis=0)
+    X_train_compat = X_tr
+
+    series_full = TimeSeries.from_dataframe(df, time_col="FECHA", value_cols=target_col)
+    cov_full = TimeSeries.from_dataframe(df, time_col="FECHA", value_cols=feature_cols)
+
+    train_ts = series_full[:-horizon]
+    val_ts = series_full[-horizon:]
+
+    scaler_y = MinMaxTimeSeriesScaler(target_min, target_max)
+    scaler_cov = MinMaxCovariatesScaler(min_vals, max_vals)
+
+    # add attn_list at the end so you can interpret it
+    out_list = [model, train_ts, val_ts, scaler_y, scaler_cov, epochs_run, feature_cols, attn_list]
+
+    return real, preds, out_list
 
 def run_transformer_with_for_2(df,
                              target_col,

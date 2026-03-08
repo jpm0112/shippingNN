@@ -13,8 +13,8 @@ from functions import error_metrics
 # ============================================================
 # Settings
 # ============================================================
-target_col = "SE"
-H = 12               # forecast horizon (weeks)
+target_col = "SAE"
+H = 4               # forecast horizon (weeks)
 n_lags = 52          # number of lag weeks used as features
 n_splits = 10        # CV splits for LassoCV
 

@@ -6,7 +6,8 @@ import pandas as pd
 import torch
 import numpy as np
 from datetime import datetime
-from functions import error_metrics, run_transformer_xai, get_attention_maps, run_transformer_with_for_xai
+# from functions import error_metrics, run_transformer_xai, get_attention_maps, run_transformer_with_for_xai
+from functions import error_metrics, run_transformer_xai, run_transformer_with_for_xai
 from functions import prettify, rename_specific
 import os
 
@@ -102,7 +103,7 @@ dropout = 0.575846442
 
 weight_decay = 0.0000808
 
-# BEST SAE 4 (updated with real values from the csv)
+# # BEST SAE 4 (updated with real values from the csv)
 test_size = 4
 target_col = "SAE"
 window_size = 32
@@ -114,68 +115,68 @@ epoch_number = 2000
 lr = 0.000482690969879744
 dropout = 0.517106545291414
 weight_decay = 7.75222194438743E-06
-
-# BEST FE 12
-test_size = 12
-target_col = "FE"
-window_size = 28
-batch_size = 32
-d_model = 128
-n_head = 2
-num_layers = 4  # lstm layers
-epoch_number = 2000
-lr = 0.001
-dropout = 0.332641601
-weight_decay = 0.001
-
-# BEST NAE 12
-test_size = 12
-target_col = "NAE"
-window_size = 26
-batch_size = 32
-d_model = 64
-n_head = 2
-num_layers = 4  # lstm layers
-lr = 0.000187546
-dropout = 0.273919743
-weight_decay = 7.55E-06
-
-# BEST NAW 12
-test_size = 12
-target_col = "NAW"
-window_size = 51
-batch_size = 128
-d_model = 256
-n_head = 8
-num_layers = 4  # lstm layers
-lr = 0.00029803
-dropout = 0.165152428
-weight_decay = 5.62E-06
-
-# BEST NE 12
-test_size = 12
-target_col = "NE"
-window_size = 47
-batch_size = 32
-d_model = 64
-n_head = 2
-num_layers = 4  # lstm layers
-lr = 0.0004815
-dropout = 0.318221159
-weight_decay = 4.00E-05
-
-# BEST SE 12
-test_size = 12
-target_col = "SE"
-window_size = 50
-batch_size = 32
-d_model = 64
-n_head = 8
-num_layers = 4  # lstm layers
-lr = 0.000427606
-dropout = 0.444859662
-weight_decay = 1.50E-05
-
+# #
+# # BEST FE 12
+# test_size = 12
+# target_col = "FE"
+# window_size = 28
+# batch_size = 32
+# d_model = 128
+# n_head = 2
+# num_layers = 4  # lstm layers
+# epoch_number = 2000
+# lr = 0.001
+# dropout = 0.332641601
+# weight_decay = 0.001
+#
+# # BEST NAE 12
+# test_size = 12
+# target_col = "NAE"
+# window_size = 26
+# batch_size = 32
+# d_model = 64
+# n_head = 2
+# num_layers = 4  # lstm layers
+# lr = 0.000187546
+# dropout = 0.273919743
+# weight_decay = 7.55E-06
+#
+# # BEST NAW 12
+# test_size = 12
+# target_col = "NAW"
+# window_size = 51
+# batch_size = 128
+# d_model = 256
+# n_head = 8
+# num_layers = 4  # lstm layers
+# lr = 0.00029803
+# dropout = 0.165152428
+# weight_decay = 5.62E-06
+#
+# # BEST NE 12
+# test_size = 12
+# target_col = "NE"
+# window_size = 47
+# batch_size = 32
+# d_model = 64
+# n_head = 2
+# num_layers = 4  # lstm layers
+# lr = 0.0004815
+# dropout = 0.318221159
+# weight_decay = 4.00E-05
+#
+# # BEST SE 12
+# test_size = 12
+# target_col = "SE"
+# window_size = 50
+# batch_size = 32
+# d_model = 64
+# n_head = 8
+# num_layers = 4  # lstm layers
+# lr = 0.000427606
+# dropout = 0.444859662
+# weight_decay = 1.50E-05
+#
 # BEST SAW 12
 test_size = 12
 target_col = "SAW"
@@ -187,8 +188,8 @@ num_layers = 4
 lr = 0.000551659
 dropout = 0.426466938
 weight_decay = 6.90E-05
-
-# BEST SAE 12 updated values from csv
+#
+# # BEST SAE 12 updated values from csv
 test_size = 12
 target_col = "SAE"
 window_size = 45
@@ -199,6 +200,55 @@ num_layers = 3  # lstm layers
 lr = 0.000496421949598074
 dropout = 0.506098106834949
 weight_decay = 0.000001
+
+
+# # combination SAW 12
+# test_size = 12
+# target_col = "SAW"
+# window_size = 4
+# batch_size = 64
+# d_model = 256
+# n_head = 4
+# num_layers = 3
+# lr = 0.000166341101818292
+# dropout = 0.292323124414817
+# weight_decay = 7.86040820898082E-06
+#
+# # combination SAE 12
+# test_size = 12
+# target_col ="SAE"
+# window_size = 4
+# batch_size = 128
+# d_model = 256
+# n_head = 4
+# num_layers = 3
+# lr = 0.000169317234009676
+# dropout = 0.447946858052264
+# weight_decay = 0.0000167817374557847
+
+# # combination SAW 4
+# test_size = 4
+# target_col = "SAW"
+# window_size = 3
+# batch_size = 64
+# d_model = 64
+# n_head = 2
+# num_layers = 2
+# lr = 0.000396541130496921
+# dropout = 0.392386896101136
+# weight_decay = 0.000159288598534597
+#
+# # combination SAE 4
+# test_size = 4
+# target_col = "SAE"
+# window_size = 3
+# batch_size = 128
+# d_model = 64
+# n_head = 8
+# num_layers = 4
+# lr = 0.000171389801980269
+# dropout = 0.262536763586103
+# weight_decay = 0.000169851561630298
 
 # ==============================
 
@@ -711,8 +761,15 @@ top = lime_summary.head(top_to_plot)
 #     "Partida Arancelaria T0": "Unique Tariff Codes T0"
 # }
 #
-# top["feature_pretty"] = top["feature_pretty"].replace(rename_dict)
 
+# rename_dict = {
+#         "South Europe Mean Rateguro Per TEU T0": "South Europe Mean Rate T0",}
+#
+# top["feature_pretty"] = top["feature_pretty"].replace(rename_dict)
+rename_dict = {
+        "FE T0": "Far East Mean Rate T0",}
+
+top["feature_pretty"] = top["feature_pretty"].replace(rename_dict)
 
 colors = ["green" if v >= 0 else "red" for v in top["signed"]]
 
@@ -1240,7 +1297,7 @@ X_background_tensor = torch.tensor(X_background, dtype=torch.float32).to(xai_dev
 # 3) Create instances to explain (last N origins)
 # ------------------------------------------------------------
 
-N_EXPLAIN = 4
+N_EXPLAIN = 104
 non_overlap_ends = valid_ends[::test_size]  # not really non-overlapping, but spaced by test_size
 
 ends_explain = valid_ends[-N_EXPLAIN:]  # for overlapping windows
@@ -1486,31 +1543,31 @@ base_value = float(base_value)
 
 feature_names = rename_specific([prettify(c) for c in feature_cols])
 
-waterfall_exp = shap.Explanation(
-    values=shap_inst_feat,
-    base_values=base_value,
-    feature_names=feature_names
-)
-
-
-# plt.rcParams['xtick.labelsize'] = 18
-# plt.rcParams['ytick.labelsize'] = 18
-# plt.rcParams['font.size'] = 18
-
-plt.rcParams["figure.figsize"] = (10, 4)
-shap.plots.waterfall(waterfall_exp, max_display=5, show=False)
-ax = plt.gca()  # get SHAP axis
-# ax.tick_params(axis='both', labelsize=16)
-# ax.set_yticklabels(ax.get_yticklabels(), fontsize=20)
-
-plt.tight_layout()
-plt.savefig(
-    f"plots/deepshap_waterfall_by_feature_{target_col}_H{test_size}_inst{instance_idx}.png",
-    dpi=200,
-    bbox_inches="tight"
-)
-plt.show()
-plt.close()
+# waterfall_exp = shap.Explanation(
+#     values=shap_inst_feat,
+#     base_values=base_value,
+#     feature_names=feature_names
+# )
+#
+#
+# # plt.rcParams['xtick.labelsize'] = 18
+# # plt.rcParams['ytick.labelsize'] = 18
+# # plt.rcParams['font.size'] = 18
+#
+# plt.rcParams["figure.figsize"] = (10, 4)
+# shap.plots.waterfall(waterfall_exp, max_display=5, show=False)
+# ax = plt.gca()  # get SHAP axis
+# # ax.tick_params(axis='both', labelsize=16)
+# # ax.set_yticklabels(ax.get_yticklabels(), fontsize=20)
+#
+# plt.tight_layout()
+# plt.savefig(
+#     f"plots/deepshap_waterfall_by_feature_{target_col}_H{test_size}_inst{instance_idx}.png",
+#     dpi=200,
+#     bbox_inches="tight"
+# )
+# plt.show()
+# plt.close()
 
 
 
@@ -1532,28 +1589,28 @@ plt.close()
 # "Average" (aggregated) waterfall — FEATURE level
 # ------------------------------------------------------------
 
-shap_mean_feat = shap_values.mean(axis=0).sum(axis=0)  # mean over samples, sum over lags
-waterfall_exp = shap.Explanation(
-    values=shap_mean_feat,
-    base_values=base_value,
-    feature_names=feature_names
-)
-plt.figure(figsize=(10, 6))
-shap.plots.waterfall(
-    waterfall_exp,
-    max_display=6,
-    show=False
-)
-# plt.title("Average DeepSHAP Waterfall (aggregated over samples)")
-plt.tight_layout()
-plt.savefig(
-    f"plots/deepshap_average_waterfall_{target_col}_H{test_size}.png",
-    dpi=300,
-    bbox_inches="tight"
-)
-
-plt.show()
-
+# shap_mean_feat = shap_values.mean(axis=0).sum(axis=0)  # mean over samples, sum over lags
+# waterfall_exp = shap.Explanation(
+#     values=shap_mean_feat,
+#     base_values=base_value,
+#     feature_names=feature_names
+# )
+# plt.figure(figsize=(10, 6))
+# shap.plots.waterfall(
+#     waterfall_exp,
+#     max_display=6,
+#     show=False
+# )
+# # plt.title("Average DeepSHAP Waterfall (aggregated over samples)")
+# plt.tight_layout()
+# plt.savefig(
+#     f"plots/deepshap_average_waterfall_{target_col}_H{test_size}.png",
+#     dpi=300,
+#     bbox_inches="tight"
+# )
+#
+# plt.show()
+#
 
 #___________________________________________________________
 
@@ -1641,9 +1698,11 @@ valid_ends = np.arange(end_min, end_max + 1)
 # ============================================================
 # 1) Choose global windows (N_GLOBAL samples)
 # ============================================================
-N_GLOBAL = 300  # increase for more points
-rng = np.random.default_rng(1048596)
-chosen_ends = rng.choice(valid_ends, size=N_GLOBAL, replace=False)
+N_GLOBAL = 104  # increase for more points
+
+
+# take the last 104 valid window endpoints
+chosen_ends = valid_ends[-N_GLOBAL:]
 
 # Build 3D tensor: (N_GLOBAL, T, n_cov)  <<< THIS is what your transformer expects
 X_global_3d = np.zeros((N_GLOBAL, T, n_cov), dtype=np.float32)
@@ -1658,7 +1717,13 @@ print("X_global_tensor:", tuple(X_global_tensor.shape))  # (N_GLOBAL, T, n_cov)
 # 2) Compute DeepSHAP for each horizon
 # ============================================================
 shap_vals_h = []  # list of (N_GLOBAL, T, n_cov)
-X_vals_h = []  # list of (N_GLOBAL, T, n_cov)  (store inputs for coloring)
+X_vals_h = []  # list of (N_GLOBAL, T, n_cov)
+
+# hard check BEFORE the loop
+print("X_global_tensor:", tuple(X_global_tensor.shape))
+print("X_background_tensor:", tuple(X_background_tensor.shape))
+assert X_background_tensor.shape[1:] == X_global_tensor.shape[1:], \
+    f"Shape mismatch (T,n_cov): bg {tuple(X_background_tensor.shape)} vs global {tuple(X_global_tensor.shape)}"
 
 for h in range(H):
     print(f"Computing SHAP for horizon {h + 1}/{H}")
@@ -1670,21 +1735,34 @@ for h in range(H):
         vmax=scaler_y.vmax
     ).to(xai_device).eval()
 
+    # ---- FIX 1: force single-input list for SHAP
+    # ---- FIX 2: DeepExplainer might fail; fall back to GradientExplainer
     try:
-        explainer_h = shap.DeepExplainer(wrapped_model, X_background_tensor)
-    except Exception:
-        explainer_h = shap.GradientExplainer(wrapped_model, X_background_tensor)
+        explainer_h = shap.DeepExplainer(wrapped_model, [X_background_tensor])
+        shap_h = explainer_h.shap_values([X_global_tensor], check_additivity=False)
+    except Exception as e:
+        print("[WARN] DeepExplainer failed, using GradientExplainer. Error:", repr(e))
+        explainer_h = shap.GradientExplainer(wrapped_model, [X_background_tensor])
+        shap_h = explainer_h.shap_values([X_global_tensor])
 
-    shap_h = explainer_h.shap_values(X_global_tensor, check_additivity=False)
-
+    # ---- unwrap outputs
     if isinstance(shap_h, list):
         shap_h = shap_h[0]
 
-    shap_h = np.squeeze(np.array(shap_h))  # (N_GLOBAL, T, n_cov)
+    shap_h = np.array(shap_h)
 
-    # keep 3D, do NOT flatten
-    shap_vals_h.append(shap_h)
-    X_vals_h.append(X_global_3d.copy())
+    # common shapes: (1, N, T, n_cov) or (N, T, n_cov)
+    if shap_h.ndim == 4 and shap_h.shape[0] == 1:
+        shap_h = shap_h[0]
+
+    shap_h = np.squeeze(shap_h)
+
+    # final sanity check
+    if shap_h.shape != X_global_3d.shape:
+        raise RuntimeError(f"Unexpected SHAP shape {shap_h.shape}; expected {X_global_3d.shape}")
+
+    shap_vals_h.append(shap_h)  # keep 3D
+    X_vals_h.append(X_global_3d.copy())  # for coloring
 
 # ============================================================
 # 3) Aggregate over time (lags) → feature level per horizon
@@ -1898,7 +1976,61 @@ plt.show()
 
 
 
+
+
+
+
+
+
+
+
+
+
+
 # ============================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2176,7 +2308,7 @@ plt.show()
 # BUILD GLOBAL WINDOWS FOR ATTENTION
 # ============================================================
 
-N_GLOBAL = 400
+N_GLOBAL = 104
 T = window_size
 H = test_size
 F = 1 + len(feature_cols)
@@ -2204,48 +2336,53 @@ for i, end in enumerate(chosen_ends):
     arr = np.concatenate([y_win, cov_win], axis=1)  # (T, F)
     X_global[i] = arr.flatten()
 
-LAYER = -1
-T = window_size
-F = 1 + len(feature_cols)
+# LAYER = -1
+# T = window_size
+# F = 1 + len(feature_cols)
+#
+# ATTN = []
+#
+# for i in range(len(X_global)):
+#     arr = X_global[i].reshape(T, F)
+#     cov_win = arr[:, 1:]
+#
+#     X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+#
+#     with torch.no_grad():
+#         attn_maps = get_attention_maps(model, X)
+#         A = attn_maps[LAYER][0].mean(dim=0)  # avg over heads
+#
+#     ATTN.append(A.cpu().numpy())
+#
+# ATTN_GLOBAL = np.mean(ATTN, axis=0)
+#
+#
+# # ============================================================
+#
+#
+# # mean of one layer's attention heads over many windows
+#
+#
+# plt.figure(figsize=(8, 6))
+# plt.imshow(
+#     ATTN_GLOBAL,
+#     cmap="viridis",
+#     aspect="auto",
+#     interpolation="nearest"  # ← KEY
+# )
+# plt.xlabel("Key time step (past)")
+# plt.ylabel("Query time step")
+# plt.title("Global Mean Attention (Time × Time)")
+# plt.colorbar()
+# plt.tight_layout()
+# plt.show()
 
-ATTN = []
 
-for i in range(len(X_global)):
-    arr = X_global[i].reshape(T, F)
-    cov_win = arr[:, 1:]
-
-    X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
-
+def get_attention_maps(model, x):
+    model.eval()
     with torch.no_grad():
-        attn_maps = get_attention_maps(model, X)
-        A = attn_maps[LAYER][0].mean(dim=0)  # avg over heads
-
-    ATTN.append(A.cpu().numpy())
-
-ATTN_GLOBAL = np.mean(ATTN, axis=0)
-
-
-# ============================================================
-
-
-# mean of one layer's attention heads over many windows
-
-
-plt.figure(figsize=(8, 6))
-plt.imshow(
-    ATTN_GLOBAL,
-    cmap="viridis",
-    aspect="auto",
-    interpolation="nearest"  # ← KEY
-)
-plt.xlabel("Key time step (past)")
-plt.ylabel("Query time step")
-plt.title("Global Mean Attention (Time × Time)")
-plt.colorbar()
-plt.tight_layout()
-plt.show()
-
-
+        _, attn_list = model(x, return_attn=True)
+    return attn_list
 
 # ============================================================
 
@@ -2365,3 +2502,181 @@ for L in range(n_layers):
     )
     plt.show()
     plt.close()
+
+
+
+
+
+
+
+
+
+attn_list = out[7]  # list of layers
+A = attn_list[0][0]  # layer 0, sample 0: (n_head, T, T)
+A = A.mean(0)  # avg heads -> (T, T)
+last = A[-1].cpu().numpy()  # attention used to make prediction
+
+# simple attention plot
+#------------------------------------------------
+
+def get_attention_maps(model, x):
+    """
+    Returns a list (per layer) of attention weights with shape:
+      attn_maps[L] -> (B, n_head, T, T)
+    Works for your CustomEncoderLayer which stores TransformerEncoderLayer in `.layer`.
+    """
+    attn_maps = []
+    hooks = []
+
+    def make_hook(layer_idx):
+        def hook_fn(module, inp, out):
+            # out is (attn_output, attn_weights) when need_weights=True
+            # attn_weights is either (B, T, T) if average_attn_weights=True
+            # or (B, n_head, T, T) if average_attn_weights=False
+            attn_w = out[1].detach()
+            attn_maps[layer_idx] = attn_w
+
+        return hook_fn
+
+    # pre-allocate list
+    n_layers = len(model.layers)
+    attn_maps = [None] * n_layers
+
+    # register hook on each layer's self_attn module
+    for L in range(n_layers):
+        mha = model.layers[L].layer.self_attn
+        hooks.append(mha.register_forward_hook(make_hook(L)))
+
+    # run a forward pass
+    _ = model(x)
+
+    # remove hooks
+    for h in hooks:
+        h.remove()
+
+    return attn_maps
+
+
+
+
+all_attn = []
+
+T = window_size
+H = test_size
+LAST_YEAR = 104  # 2 years if weekly, adjust if needed
+
+end_min = T - 1
+end_max = len(series_scaled) - H - 1
+
+valid_ends = np.arange(end_min, end_max + 1)
+
+# windows whose END is inside last year
+last_year_start = len(series_scaled) - LAST_YEAR - 1
+last_year_ends = valid_ends[valid_ends >= last_year_start]
+
+n_cov = len(feature_cols)
+N = len(last_year_ends)
+
+X_batch = np.zeros((N, T, n_cov), dtype=np.float32)
+
+for i, end in enumerate(last_year_ends):
+    start = end - T + 1
+    X_batch[i] = cov_scaled.values(copy=True)[start:end + 1]
+
+X_batch = torch.tensor(X_batch, dtype=torch.float32).to(device)
+
+print("Batch shape:", X_batch.shape)  # (N, T, n_cov)
+
+with torch.no_grad():
+    _, attn_list = model(X_batch, return_attn=True)
+
+print("Layers:", len(attn_list))
+print("Layer 0 shape:", attn_list[0].shape)
+# should be (N, n_head, T, T)
+
+
+n_layers = len(attn_list)
+T = window_size
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+n_layers = len(attn_list)
+T = window_size
+
+
+for L in range(n_layers):
+
+    A = attn_list[L]  # (N, n_head, T, T)
+    N, n_head, _, _ = A.shape
+
+    A_mean = A.mean(dim=0)  # (n_head, T, T)
+
+    plt.figure(figsize=(8, 6))
+
+    # better distinct colors
+    colors = plt.cm.tab10(np.linspace(0, 1, n_head))
+
+    for h in range(n_head):
+        colors = [
+            "#e41a1c",  # red
+            "#377eb8",  # blue
+            "#4daf4a",  # green
+            "#984ea3",  # purple
+            "#ff7f00",  # orange
+            "#a65628",  # brown
+            "#f781bf",  # pink
+            "#999999",  # gray
+        ]
+
+        last_row = A_mean[h, -1, :].cpu().numpy()[::-1]
+        plt.plot(last_row, color=colors[h % len(colors)], linewidth=2, label=f"Attention Head {h+1}")
+
+    # plt.title(f"Layer {L + 1}", fontsize=14)
+    plt.xlabel("Time lag (0 = most recent)", fontsize=14)
+    plt.ylabel("Attention weight", fontsize =14)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.grid(True, linestyle="--", linewidth=0.5)
+    plt.legend(fontsize=14)
+    plt.tight_layout()
+    plt.savefig(f"plots/attention_{target_col}_H{test_size}_layer{L + 1}.png",
+                dpi=300, bbox_inches="tight")
+    plt.show()
+
+plt.figure(figsize=(8, 6))
+
+layer_colors = [
+    "#e41a1c",  # red
+    "#377eb8",  # blue
+    "#4daf4a",  # green
+    "#984ea3",  # purple
+    "#ff7f00",  # orange
+]
+
+for L in range(n_layers):
+    A = attn_list[L]  # (N, n_head, T, T)
+
+    # mean over samples and heads
+    A_mean = A.mean(dim=0).mean(dim=0)  # (T, T)
+
+    # last query token
+    last_row = A_mean[-1, :].cpu().numpy()[::-1]
+
+    plt.plot(
+        last_row,
+        color=layer_colors[L % len(layer_colors)],
+        linewidth=2.5,
+        label=f"Layer {L + 1}"
+    )
+
+plt.xlabel("Time lag (0 = most recent)", fontsize=14)
+plt.ylabel("Attention weight", fontsize=14)
+plt.xticks(fontsize=14)
+plt.yticks(fontsize=14)
+plt.grid(True, linestyle="--", linewidth=0.5)
+plt.legend(fontsize=14)
+plt.tight_layout()
+plt.savefig(f"plots/attention_layers_{target_col}_H{test_size}.png",
+            dpi=300, bbox_inches="tight")
+plt.show()

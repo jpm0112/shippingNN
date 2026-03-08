@@ -1,4 +1,3 @@
-import os
 
 
 
@@ -31,17 +30,43 @@ df = df.sort_values("FECHA").reset_index(drop=True)
 target_col = "SAW"
 
 test_size = 12 # number of weeks to forecast
-window_size = 30
-hidden_size = 128
+window_size = 23
+hidden_size = 64
 lstm_layers = 3
 num_attention_heads = 4
-dropout = 0.358009424
-
-batch_size = 32
-lr = 0.00014387
+dropout = 0.155935643977613
+batch_size = 64
+lr = 0.000683754629295905
 
 n_epochs = 2000
 grad_clip = 1.76653228
+
+#
+# # SAE12
+# target_col = "SAE"
+# test_size = 12
+# window_size = 31
+# hidden_size = 128
+# lstm_layers = 1
+# num_attention_heads = 2
+# dropout = 0.6
+# batch_size = 64
+# lr = 0.000627417564611408
+# n_epochs = 2000
+# grad_clip = 2.65601520483928
+
+# # FE12
+target_col = "FE"
+test_size = 12
+window_size = 12
+hidden_size = 128
+lstm_layers = 2
+num_attention_heads = 2
+dropout = 0.156711741946259
+batch_size = 64
+lr = 0.000412058281370599
+n_epochs = 2000
+grad_clip = 1.5575147936763
 
 patience = 100
 min_delta = 1e-5
