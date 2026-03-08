@@ -4,6 +4,8 @@
 
 import warnings
 
+from sympy import true
+
 warnings.filterwarnings("ignore")
 
 import os
@@ -20,7 +22,7 @@ from functions import run_transformer_with_for, clean_gpu
 # ============================================================
 #  GLOBAL CONFIG
 # ============================================================
-initial_test_size = 12
+initial_test_size = 4
 number_test_sets = 3
 iterations = 100
 
@@ -33,6 +35,8 @@ target_cols = ["FE", "NAE", "NAW", "NE", "SE", "SAW", "SAE"]
 target_cols = ["SAW_selection","SAW_forced_window", "SAE_selection", "SAE_forced_window"]
 
 target_cols = ["SAW", "SAE"]
+
+target_cols = ["SAW_selection", "SAE_selection"]
 
 
 deleted_weeks_list = [0]
@@ -73,7 +77,7 @@ def run_target(target_col, gpu_id, deleted_weeks):
     results_dir.mkdir(exist_ok=True)
 
     csv_path = results_dir / (
-        f"china_trials_transformer_trials_{country}_{target_col}_"
+        f"2china_trials_transformer_trials_{country}_{target_col}_"
         f"del{deleted_weeks}_{timestamp}_{initial_test_size}.csv"
     )
 
@@ -99,6 +103,9 @@ def run_target(target_col, gpu_id, deleted_weeks):
     maximum_window = 48
 
     if "SAW_forced_window" == target_col or "SAE_forced_window" == target_col:
+        minimum_window = 1
+        maximum_window = 5
+    if true:
         minimum_window = 1
         maximum_window = 5
 
