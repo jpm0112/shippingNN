@@ -104,17 +104,17 @@ dropout = 0.575846442
 weight_decay = 0.0000808
 
 # # BEST SAE 4 (updated with real values from the csv)
-test_size = 4
-target_col = "SAE"
-window_size = 32
-batch_size = 32
-d_model = 128
-n_head = 2
-num_layers = 4  # lstm layers
-epoch_number = 2000
-lr = 0.000482690969879744
-dropout = 0.517106545291414
-weight_decay = 7.75222194438743E-06
+# test_size = 4
+# target_col = "SAE"
+# window_size = 32
+# batch_size = 32
+# d_model = 128
+# n_head = 2
+# num_layers = 4  # lstm layers
+# epoch_number = 2000
+# lr = 0.000482690969879744
+# dropout = 0.517106545291414
+# weight_decay = 7.75222194438743E-06
 # #
 # # BEST FE 12
 # test_size = 12
@@ -178,28 +178,28 @@ weight_decay = 7.75222194438743E-06
 # weight_decay = 1.50E-05
 #
 # BEST SAW 12
-test_size = 12
-target_col = "SAW"
-window_size = 49
-batch_size = 128
-d_model = 256
-n_head = 4
-num_layers = 4
-lr = 0.000551659
-dropout = 0.426466938
-weight_decay = 6.90E-05
+# test_size = 12
+# target_col = "SAW"
+# window_size = 49
+# batch_size = 128
+# d_model = 256
+# n_head = 4
+# num_layers = 4
+# lr = 0.000551659
+# dropout = 0.426466938
+# weight_decay = 6.90E-05
 #
 # # BEST SAE 12 updated values from csv
-test_size = 12
-target_col = "SAE"
-window_size = 45
-batch_size = 64
-d_model = 256
-n_head = 8
-num_layers = 3  # lstm layers
-lr = 0.000496421949598074
-dropout = 0.506098106834949
-weight_decay = 0.000001
+# test_size = 12
+# target_col = "SAE"
+# window_size = 45
+# batch_size = 64
+# d_model = 256
+# n_head = 8
+# num_layers = 3  # lstm layers
+# lr = 0.000496421949598074
+# dropout = 0.506098106834949
+# weight_decay = 0.000001
 
 
 # # combination SAW 12
@@ -306,10 +306,10 @@ model.to(device)
 model.eval()
 torch.set_grad_enabled(False)
 
-# Optional guard: if you truly intend a covariates-only model, the target must NOT be in feature_cols
-if target_col in feature_cols:
+# The target is intentionally included in feature_cols as a past covariate
+if target_col not in feature_cols:
     print(
-        f"⚠️ WARNING: target_col '{target_col}' is present inside feature_cols. This leaks the target into the model inputs and will invalidate feature importance.")
+        f"⚠️ WARNING: target_col '{target_col}' is NOT present in feature_cols. The model was trained with it as an input feature.")
 
 # Ensure datetime (CRITICAL)
 df["FECHA"] = pd.to_datetime(df["FECHA"])
@@ -321,7 +321,7 @@ full_cov = TimeSeries.from_dataframe(df, "FECHA", feature_cols)
 series_scaled = scaler_y.transform(full_series)
 cov_scaled = scaler_cov.transform(full_cov)
 
-F = 1 + len(feature_cols)
+F = len(feature_cols)
 
 # last forecast point
 last_idx = len(df) - 1
@@ -331,18 +331,14 @@ assert start_hist >= 0
 start_time = df["FECHA"].iloc[start_hist]
 end_time = df["FECHA"].iloc[start_hist + window_size - 1]
 
-hist_target = series_scaled.slice(start_time, end_time)
 hist_cov = cov_scaled.slice(start_time, end_time)
-
-y_hist_np = hist_target.values(copy=True)
 cov_hist_np = hist_cov.values(copy=True)
 
-hist_full_np = np.concatenate([y_hist_np, cov_hist_np], axis=1)
-x0 = hist_full_np.flatten()
+x0 = cov_hist_np.flatten()
 
 # Feature names
 feat_names = []
-cols_all = [target_col] + feature_cols
+cols_all = feature_cols
 for t in range(window_size):
     lag = window_size - 1 - t
     for c in cols_all:
@@ -403,10 +399,8 @@ def predict_fn(flat_X):
     for i in range(flat_X.shape[0]):
         arr = flat_X[i].reshape(window_size, F)
 
-        # Transformer ONLY uses covariates (match your training pipeline)
-        cov_win = arr[:, 1:]  # (T, n_cov)
-
-        X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+        # All features including target are model inputs
+        X = torch.tensor(arr, dtype=torch.float32).unsqueeze(0).to(device)
 
         with torch.no_grad():
             y_hat_scaled = model(X).detach().cpu().numpy().reshape(-1)  # (H,)
@@ -570,15 +564,14 @@ import matplotlib.pyplot as plt
 # ------------------------------------------------------------
 # 0) Build MANY valid windows (no peeking into the future)
 # ------------------------------------------------------------
-cols_all = [target_col] + feature_cols
+cols_all = feature_cols
 F = len(cols_all)
 T = window_size
 H = test_size
 
 # Work directly in numpy (avoids any TimeSeries slicing surprises)
-y_all = series_scaled.values(copy=True)  # (N_total, 1)
-cov_all = cov_scaled.values(copy=True)  # (N_total, n_cov)
-N_total = len(y_all)
+cov_all = cov_scaled.values(copy=True)  # (N_total, n_features including target)
+N_total = len(cov_all)
 
 end_min = T - 1
 end_max = N_total - H - 1  # last origin with full H-step future available
@@ -603,10 +596,7 @@ ends_explain = non_overlap_ends[-N_ORIGINS:]
 X_explain = np.zeros((N_ORIGINS, T * F), dtype=float)
 for i, end in enumerate(ends_explain):
     start = end - T + 1
-    X_explain[i] = np.concatenate(
-        [y_all[start:end + 1], cov_all[start:end + 1]],
-        axis=1
-    ).reshape(-1)
+    X_explain[i] = cov_all[start:end + 1].reshape(-1)
 
 print("X_explain shape:", X_explain.shape)
 
@@ -620,10 +610,7 @@ bg_ends = rng.choice(valid_ends, size=N_BACKGROUND, replace=False)
 X_bg = np.zeros((N_BACKGROUND, T * F), dtype=float)
 for i, end in enumerate(bg_ends):
     start = end - T + 1
-    X_bg[i] = np.concatenate(
-        [y_all[start:end + 1], cov_all[start:end + 1]],
-        axis=1
-    ).reshape(-1)
+    X_bg[i] = cov_all[start:end + 1].reshape(-1)
 
 # ------------------------------------------------------------
 # 3) Feature names (must match flattening order!)
@@ -991,9 +978,8 @@ def make_predict_fn(h):
 
         for i in range(flat_X.shape[0]):
             arr = flat_X[i].reshape(window_size, F)
-            cov_win = arr[:, 1:]  # covariates only
 
-            X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+            X = torch.tensor(arr, dtype=torch.float32).unsqueeze(0).to(device)
             with torch.no_grad():
                 y_hat_scaled = model(X).cpu().numpy().reshape(-1)
 
@@ -2311,7 +2297,7 @@ plt.show()
 N_GLOBAL = 104
 T = window_size
 H = test_size
-F = 1 + len(feature_cols)
+F = len(feature_cols)
 
 end_min = T - 1
 end_max = len(series_scaled) - H - 1
@@ -2330,11 +2316,8 @@ X_global = np.zeros((len(chosen_ends), T * F), dtype=np.float32)
 for i, end in enumerate(chosen_ends):
     start = end - T + 1
 
-    y_win = series_scaled.values(copy=True)[start:end + 1]
     cov_win = cov_scaled.values(copy=True)[start:end + 1]
-
-    arr = np.concatenate([y_win, cov_win], axis=1)  # (T, F)
-    X_global[i] = arr.flatten()
+    X_global[i] = cov_win.flatten()
 
 # LAYER = -1
 # T = window_size
@@ -2390,8 +2373,7 @@ ATTN = []
 
 for i in range(len(X_global)):
     arr = X_global[i].reshape(T, F)
-    cov_win = arr[:, 1:]
-    X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+    X = torch.tensor(arr, dtype=torch.float32).unsqueeze(0).to(device)
 
     with torch.no_grad():
         attn_maps = get_attention_maps(model, X)
@@ -2469,9 +2451,8 @@ for L in range(n_layers):
 
     for i in range(len(X_global)):
         arr = X_global[i].reshape(T, F)
-        cov_win = arr[:, 1:]
 
-        X = torch.tensor(cov_win, dtype=torch.float32).unsqueeze(0).to(device)
+        X = torch.tensor(arr, dtype=torch.float32).unsqueeze(0).to(device)
 
         with torch.no_grad():
             attn_maps = get_attention_maps(model, X)
