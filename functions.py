@@ -736,7 +736,7 @@ def run_transformer(df, target_col, window_size, test_size, batch_size, d_model,
     torch.backends.cudnn.benchmark = False
     print(f"Using device: {device_info(device)}")
 
-    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
+    feature_cols = [col for col in df.columns if col not in ['FECHA', 'series']]
 
     # ===== Split train/test =====
     horizon = test_size
@@ -954,7 +954,7 @@ def run_transformer_xai_old(df, target_col, window_size, test_size, batch_size, 
     torch.backends.cudnn.benchmark = False
     print(f"Using device: {device_info(device)}")
 
-    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
+    feature_cols = [col for col in df.columns if col not in ['FECHA', 'series']]
 
     # ===== Split train/test =====
     horizon = test_size
@@ -1171,7 +1171,7 @@ def run_transformer_xai(df, target_col, window_size, test_size, batch_size, d_mo
     torch.backends.cudnn.benchmark = False
     print(f"Using device: {device_info(device)}")
 
-    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
+    feature_cols = [col for col in df.columns if col not in ['FECHA', 'series']]
 
     horizon = test_size
     val_size = test_size
@@ -1617,7 +1617,7 @@ def run_lstm(df, target_col, window_size, test_size, batch_size,
 
     print(f"Using device: {device_info(device)}")
 
-    feature_cols = [col for col in df.columns if col not in ['FECHA', target_col, 'series']]
+    feature_cols = [col for col in df.columns if col not in ['FECHA', 'series']]
 
     horizon = test_size  # Direct multi-horizon prediction
 
@@ -2096,7 +2096,7 @@ def run_darts_tft(df,
     )
 
     # ---- 1b. Build past covariates from all other columns ----
-    feature_cols = [c for c in df.columns if c not in ["FECHA", target_col]]
+    feature_cols = [c for c in df.columns if c not in ["FECHA"]]
     past_cov = TimeSeries.from_dataframe(
         df,
         time_col="FECHA",
@@ -2188,7 +2188,7 @@ def run_darts_tft(df,
     # Use full_past_scaled so model has covariates over history + horizon
     pred_scaled = model.predict(
         n=test_size,
-        series=val[:-test_size],  # Use the start of val as input
+        series=val_scaled[:-test_size],  # Use the start of val as input (scaled)
         past_covariates=full_past_scaled,
         dataloader_kwargs={"num_workers": 0},
     )
