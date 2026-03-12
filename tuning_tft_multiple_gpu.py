@@ -197,7 +197,7 @@ if __name__ == "__main__":
     target_cols = ["NAW", "NAE", "NE", "SAW", "SAE", "SE", "FE"]
     prediction_sizes = [4, 12]
 
-    n_gpus = get_gpu_count()
+    n_gpus = min(get_gpu_count(), 2)
     if n_gpus <= 0:
         raise RuntimeError("No GPUs detected.")
 
