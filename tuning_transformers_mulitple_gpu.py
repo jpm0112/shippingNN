@@ -245,7 +245,7 @@ if __name__ == "__main__":
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
 
-    gpus = [0, 1]
+    gpus = list(range(min(torch.cuda.device_count(), 2)))  # max 2 GPUs
     processes = []
 
     combos = list(product(target_cols, deleted_weeks_list))

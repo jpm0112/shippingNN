@@ -86,3 +86,6 @@ wcwidth==0.2.14
 widgetsnbextension==4.0.14
 yarl==1.20.1
 zipp==3.23.0
+darts==0.37.1
+tft-torch==0.0.6
+omegaconf==2.3.0

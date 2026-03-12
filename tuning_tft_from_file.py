@@ -250,7 +250,7 @@ if __name__ == "__main__":
 
     mp.set_start_method("spawn", force=True)
 
-    available_gpus = torch.cuda.device_count()
+    available_gpus = min(torch.cuda.device_count(), 2)
 
     if available_gpus == 0:
         raise RuntimeError("No GPUs detected.")
