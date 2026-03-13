@@ -2163,7 +2163,8 @@ def run_darts_tft(df,
         likelihood=None,
         optimizer_kwargs={"lr": lr},
         pl_trainer_kwargs={
-            "gpus": 1,  # single GPU, no DDP
+            "accelerator": "gpu" if torch.cuda.is_available() else "cpu",
+            "devices": 1,
             "callbacks": [early_stop],
             "gradient_clip_val": grad_clip,
             "gradient_clip_algorithm": "norm",
