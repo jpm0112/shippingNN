@@ -18,7 +18,7 @@ import csv
 number_test_sets = 3
 iterations = 100
 
-patience = 50
+patience = 100
 min_delta = 1e-5
 seed = 1048596
 metric = "mape"
