@@ -4,3 +4,5 @@
 notebooks/lightning_logs/**/checkpoints/*.ckpt
 lightning_logs/*
 __pycache__/
+runtftsh*.i*
+runtftsh*.o*
