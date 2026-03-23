@@ -97,10 +97,7 @@ def run_targets_on_gpu(gpu_id: int, targets):
     from ax.service.ax_client import AxClient
     from ax.service.utils.instantiation import ObjectiveProperties
 
-    print("\n" + "_" * 95)
-    print(f"Worker GPU_ID={gpu_id}")
-    print(f"torch sees {torch.cuda.device_count()} GPU(s)")
-    print("_" * 95 + "\n")
+    print(f"GPU {gpu_id} started | {len(targets)} targets")
 
     seed_everything(seed, workers=True)
 
@@ -108,13 +105,20 @@ def run_targets_on_gpu(gpu_id: int, targets):
     df["FECHA"] = pd.to_datetime(df["FECHA"])
     df = df.sort_values("FECHA")
 
+    results_dir = Path("asax_results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+
     for target_col, prediction_size in targets:
 
+        existing = list(results_dir.glob(f"tft_trials_{country}_{target_col}_*_{prediction_size}.csv"))
+        if existing:
+            print(f"GPU {gpu_id} | SKIP {target_col}_H{prediction_size} (found {existing[0].name})")
+            continue
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        results_dir = Path("results")
-        results_dir.mkdir(parents=True, exist_ok=True)
 
         csv_path = results_dir / f"tft_trials_{country}_{target_col}_{timestamp}_{prediction_size}.csv"
+        print(f"GPU {gpu_id} | Writing to: {csv_path.name}")
         csv_file = csv_path.open("w", newline="")
         csv_writer = csv.DictWriter(
             csv_file,
@@ -147,7 +151,7 @@ def run_targets_on_gpu(gpu_id: int, targets):
 
         for i in range(iterations):
 
-            print(f"GPU {gpu_id} | {target_col} | Trial {i + 1}/{iterations}")
+            print(f"GPU {gpu_id} | {target_col}_H{prediction_size} | Trial {i + 1}/{iterations}")
 
             params, trial_index = ax.get_next_trial()
             started_at = datetime.now()
@@ -164,7 +168,7 @@ def run_targets_on_gpu(gpu_id: int, targets):
             result = q.get()
 
             if isinstance(result, Exception):
-                print("Trial failed:", result)
+                print(f"GPU {gpu_id} | {target_col}_H{prediction_size} | Trial {i + 1} FAILED: {result}")
                 ax.log_trial_failure(trial_index)
                 continue
 
