@@ -108,17 +108,12 @@ def run_targets_on_gpu(gpu_id: int, targets):
     results_dir = Path("asax_results")
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    for target_col, prediction_size in targets:
-
-        existing = list(results_dir.glob(f"tft_trials_{country}_{target_col}_*_{prediction_size}.csv"))
-        if existing:
-            print(f"GPU {gpu_id} | SKIP {target_col}_H{prediction_size} (found {existing[0].name})")
-            continue
+    for target_col, prediction_size, n_iters in targets:
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         csv_path = results_dir / f"tft_trials_{country}_{target_col}_{timestamp}_{prediction_size}.csv"
-        print(f"GPU {gpu_id} | Writing to: {csv_path.name}")
+        print(f"GPU {gpu_id} | Writing to: {csv_path.name} ({n_iters} iterations)")
         csv_file = csv_path.open("w", newline="")
         csv_writer = csv.DictWriter(
             csv_file,
@@ -149,9 +144,9 @@ def run_targets_on_gpu(gpu_id: int, targets):
             objectives={metric: ObjectiveProperties(minimize=True)},
         )
 
-        for i in range(iterations):
+        for i in range(n_iters):
 
-            print(f"GPU {gpu_id} | {target_col}_H{prediction_size} | Trial {i + 1}/{iterations}")
+            print(f"GPU {gpu_id} | {target_col}_H{prediction_size} | Trial {i + 1}/{n_iters}")
 
             params, trial_index = ax.get_next_trial()
             started_at = datetime.now()
@@ -198,19 +193,28 @@ if __name__ == "__main__":
 
     set_start_method("spawn", force=True)
 
-    target_cols = ["NAW", "NAE", "NE", "SAW", "SAE", "SE", "FE"]
-    prediction_sizes = [4, 12]
+    # (route, prediction_size, iterations_needed)
+    # Complete in asax_results (SKIP): NAE_4, NAW_4, NAW_12, SAE_4, SAE_12, SAW_12
+    # Incomplete: NAE_12 (95/100), SE_4 (84/100)
+    # Missing entirely: FE_4, FE_12, NE_4, NE_12, SAW_4, SE_12
+    jobs = [
+        ("NAE", 12, 100),
+        ("SE",   4, 100),
+        ("FE",   4, 100),
+        ("FE",  12, 100),
+        ("NE",   4, 100),
+        ("NE",  12, 100),
+        ("SAW",  4, 100),
+        ("SE",  12, 100),
+    ]
 
     n_gpus = min(get_gpu_count(), 2)
     if n_gpus <= 0:
         raise RuntimeError("No GPUs detected.")
-
-    jobs = [(t, p) for t in target_cols for p in prediction_sizes]
-    splits = np.array_split(jobs, n_gpus)
+    splits = [jobs[i::n_gpus] for i in range(n_gpus)]
 
     processes = []
     for gpu_id, split_jobs in enumerate(splits):
-        split_jobs = list(split_jobs)
         if not split_jobs:
             continue
 
