@@ -6,3 +6,6 @@ lightning_logs/*
 __pycache__/
 runtftsh*.i*
 runtftsh*.o*
+run_tft.sh.o*
+run_tft.sh.e*
+TFTruns.i*
